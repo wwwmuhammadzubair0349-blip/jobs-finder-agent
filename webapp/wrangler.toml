@@ -15,4 +15,4 @@ compatibility_date = "2024-09-01"
 # Local dev binding (production binding is set in the Pages dashboard UI).
 [[kv_namespaces]]
 binding = "KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "942b366d2d8d46a9b19a6e7d01552049"

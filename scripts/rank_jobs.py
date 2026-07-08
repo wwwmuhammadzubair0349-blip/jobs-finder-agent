@@ -69,7 +69,7 @@ def score_job(job: dict, profile: dict, search: dict) -> tuple[float, str]:
     best_title = max((fuzz.token_set_ratio(title, r) for r in target_roles), default=0)
     title_score = 0.30 * (best_title / 100)
     if best_title >= 60:
-        reasons.append(f"title~{best_title}%")
+        reasons.append(f"title {best_title:.0f}%")
 
     # 2) skills / tools keyword overlap (0-35)
     skills = [s.lower() for s in (profile.get("skills", []) + profile.get("tools", []))]
