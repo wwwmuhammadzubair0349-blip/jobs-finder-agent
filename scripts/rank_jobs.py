@@ -62,27 +62,36 @@ def score_job(job: dict, profile: dict, search: dict) -> tuple[float, str]:
     reasons = []
     title = job.get("title", "")
     desc = job.get("description", "")
-    hay = _tokens(f"{title} {desc}")
+    text = f"{title} {desc}".lower()          # full text for phrase matching
+    hay = _tokens(text)                         # single-token set for word matching
 
-    # 1) title / target-role overlap (0-30)
+    # 1) title / target-role overlap (0-40) — the strongest signal
     target_roles = profile.get("target_roles", []) or search.get("job_titles", [])
     best_title = max((fuzz.token_set_ratio(title, r) for r in target_roles), default=0)
-    title_score = 0.30 * (best_title / 100)
+    title_score = 0.40 * (best_title / 100)
     if best_title >= 60:
         reasons.append(f"title {best_title:.0f}%")
 
-    # 2) skills / tools keyword overlap (0-35)
+    # 2) skills / tools overlap (0-35) — scored on the NUMBER of matching skills
+    # (saturating at ~4), NOT as a fraction of the whole skill list. A great job
+    # only ever mentions a handful of a candidate's skills. Matches both
+    # multi-word phrases (substring) and single words (token set).
     skills = [s.lower() for s in (profile.get("skills", []) + profile.get("tools", []))]
     inc = [k.lower() for k in search.get("keywords_include", [])]
-    wanted = set(skills + inc)
-    hits = {w for w in wanted if w in hay or any(w in tok for tok in hay)}
-    skill_ratio = (len(hits) / len(wanted)) if wanted else 0
-    skill_score = 0.35 * min(1.0, skill_ratio * 1.5)
+    wanted = {w for w in (skills + inc) if w}
+    hits = set()
+    for w in wanted:
+        if " " in w:
+            if w in text:
+                hits.add(w)
+        elif w in hay or any(w in tok for tok in hay):
+            hits.add(w)
+    skill_score = 0.35 * min(1.0, len(hits) / 4.0)
     if hits:
         reasons.append(f"skills: {', '.join(sorted(list(hits))[:5])}")
 
     # 3) location / remote fit (0-15)
-    loc_score = 0.0
+    loc_score = 0.08  # neutral default (unknown/other location still fine)
     if search.get("remote") and job.get("remote"):
         loc_score = 0.15
         reasons.append("remote")
@@ -90,18 +99,19 @@ def score_job(job: dict, profile: dict, search: dict) -> tuple[float, str]:
         locs = [l.lower() for l in search.get("locations", [])]
         jloc = job.get("location", "").lower()
         if any(l in jloc for l in locs if l and l != "remote"):
-            loc_score = 0.13
+            loc_score = 0.15
             reasons.append("location fit")
-        else:
-            loc_score = 0.06
+        elif job.get("remote"):
+            loc_score = 0.11
+            reasons.append("remote-capable")
 
-    # 4) recency (0-15)
+    # 4) recency (0-7)
     rec = _recency_score(job.get("posted_at", ""), int(search.get("posted_within_days", 7)))
-    rec_score = 0.15 * rec
+    rec_score = 0.07 * rec
 
-    # 5) seniority alignment (0-5)
+    # 5) seniority alignment (0-3)
     sen = (search.get("seniority") or profile.get("seniority") or "").lower()
-    sen_score = 0.05 if (sen and sen in hay) else 0.02
+    sen_score = 0.03 if (sen and sen in hay) else 0.01
 
     total = round((title_score + skill_score + loc_score + rec_score + sen_score) * 100, 1)
 

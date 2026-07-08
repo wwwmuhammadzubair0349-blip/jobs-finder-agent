@@ -38,6 +38,14 @@ from log_issue import log_issue
 _TIMEOUT = 25
 _UA = "Mozilla/5.0 (compatible; JobsFinderAgent/1.0)"
 
+# Country names we treat as region scope (not a city `where` filter) for Adzuna.
+_COUNTRY_NAMES = {
+    "united arab emirates", "uae", "saudi arabia", "qatar", "oman", "kuwait",
+    "bahrain", "germany", "italy", "netherlands", "france", "spain", "united kingdom",
+    "uk", "united states", "usa", "canada", "australia", "new zealand", "india",
+    "singapore", "south africa", "pakistan", "ireland",
+}
+
 
 def _iso_days_ago(days: int) -> _dt.datetime:
     return _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=days)
@@ -155,7 +163,10 @@ def collect_adzuna(query, location, search, settings) -> list[dict]:
         "max_days_old": int(search.get("posted_within_days", 7)),
         "content-type": "application/json",
     }
-    if location and location.lower() not in ("remote", "anywhere", ""):
+    # Only use `where` for a city/region INSIDE the chosen country. A country
+    # name (e.g. "United Arab Emirates") is not a valid `where` in a UK/DE index
+    # and would return zero — so we drop it and search the whole adzuna_country.
+    if location and location.lower() not in _COUNTRY_NAMES and location.lower() not in ("remote", "anywhere", ""):
         params["where"] = location
     try:
         resp = requests.get(
