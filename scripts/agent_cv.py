@@ -69,7 +69,8 @@ Return a JSON object with EXACTLY these keys:
     "paragraphs": ["para1","para2","para3"],
     "signoff": "e.g. Kind regards,\\n<full name>"
   }},
-  "keywords": ["8-15 ATS keywords pulled from the job description"]
+  "keywords": ["8-15 ATS keywords pulled from the job description"],
+  "apply_steps": ["4-6 short, concrete step-by-step actions to apply for THIS job (open link, attach the CV/cover letter, what to emphasise, any specific field/requirement to address)"]
 }}
 Keep every experience entry from the profile (same company/title/dates); only
 rewrite the bullets. Output JSON only."""
@@ -96,6 +97,13 @@ def _fallback(job: dict, profile: dict) -> dict:
             "signoff": f"Kind regards,\n{name}",
         },
         "keywords": [],
+        "apply_steps": [
+            f"Open the apply link for {job.get('title','')} at {job.get('company','')}.",
+            "Download and attach the tailored CV (PDF) and cover letter.",
+            "Paste the plain-text ATS CV if the form has a resume text box.",
+            "In any 'why you' field, emphasise your most relevant experience for this role.",
+            "Submit, then tap ✅ Applied below so it's tracked.",
+        ],
     }
 
 
@@ -105,7 +113,7 @@ def _sanitise(data: dict, job: dict, profile: dict) -> dict:
     if not isinstance(data, dict):
         return base
     out = dict(base)
-    for key in ("summary", "skills", "experience", "education", "certifications", "keywords"):
+    for key in ("summary", "skills", "experience", "education", "certifications", "keywords", "apply_steps"):
         if data.get(key):
             out[key] = data[key]
     cl = data.get("cover_letter")

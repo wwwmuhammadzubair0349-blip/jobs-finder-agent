@@ -28,6 +28,7 @@ _SITE_CVS = _ROOT / "site" / "cvs"
 
 _log_tail: list[str] = []
 _step_states: dict[str, str] = {}
+_current: dict = {"agent": None, "job": None, "phase": "idle"}
 _started = _dt.datetime.now(_dt.timezone.utc)
 
 
@@ -46,6 +47,7 @@ def _push_run(status: str, finished: bool = False) -> None:
     blob = {
         "status": status,
         "step_states": _step_states,
+        "current": dict(_current),
         "log_tail": _log_tail[-40:],
         "started_at": _started.isoformat(timespec="seconds"),
         "finished_at": _now_iso() if finished else None,
@@ -56,11 +58,20 @@ def _push_run(status: str, finished: bool = False) -> None:
         pass
 
 
+def set_activity(agent: str | None, job: str | None, phase: str) -> None:
+    _current["agent"] = agent
+    _current["job"] = job
+    _current["phase"] = phase
+    _push_run("running")
+
+
 def step(name: str, critical: bool):
     """Decorator-ish context via closures; returns a runner."""
     def run(fn, *args, **kwargs):
         log(f"▶ {name}")
         _step_states[name] = "run"
+        _current["agent"] = name
+        _current["phase"] = "collecting" if "collect" in name else name
         _push_run("running")
         t0 = time.time()
         try:
@@ -140,6 +151,10 @@ def main() -> None:
     profile = get_profile()
     search = get_search()
     settings = get_settings()
+
+    # Manual queue first: jobs the user pressed "Send to Telegram" on. These are
+    # processed immediately regardless of seen/quiet-hours.
+    _process_manual_queue(profile)
     quiet = _in_quiet_hours(settings)
     if quiet:
         log("🌙 quiet hours — will collect but defer processing/notifications")
@@ -211,6 +226,31 @@ def main() -> None:
     _finish("ok")
 
 
+def _process_manual_queue(profile: dict) -> None:
+    """Process user-requested jobs from KV `manual_queue` right away."""
+    from cf_store import kv_get, kv_put
+    from sync_cf import add_seen, store_recent
+
+    queue = kv_get("manual_queue", []) or []
+    if not queue:
+        return
+    log(f"📨 manual queue: {len(queue)} job(s) requested from dashboard")
+    processed = []
+    sent_ids = []
+    for job in queue:
+        entry = _process_job(job, profile)
+        if entry:
+            processed.append(entry)
+            sent_ids.append(job.get("id"))
+            if job.get("url"):
+                sent_ids.append(job["url"].strip().lower())
+    if processed:
+        store_recent(processed)
+        add_seen([i for i in sent_ids if i])
+    kv_put("manual_queue", [])  # clear the queue
+    set_activity(None, None, "idle")
+
+
 def _verify(new_jobs):
     from verify_links import verify_links
     ok, _dead = verify_links(new_jobs)
@@ -226,16 +266,20 @@ def _process_job(job: dict, profile: dict) -> dict | None:
         from publish_cvs import publish
         from send_telegram import send_job
 
+        set_activity("agent_cv", f"{title} @ {job.get('company','')}", "writing CV & cover letter")
         log(f"  ✎ tailoring: {title} @ {job.get('company','')}")
         cv_data = tailor(job, profile)
 
+        set_activity("render_cv", f"{title} @ {job.get('company','')}", "rendering PDFs")
         result = render(job, profile, cv_data, _OUTPUT)
         # also copy into site/cvs for GitHub Pages publishing
         _copy_to_site(result, job)
 
+        set_activity("publish_cvs", f"{title} @ {job.get('company','')}", "publishing CV")
         urls = publish(result["slug"], result) or {}
 
-        send_job(job, result)
+        set_activity("send_telegram", f"{title} @ {job.get('company','')}", "sending to Telegram")
+        send_job(job, result, cv_data)
 
         return {
             **{k: job.get(k) for k in ("id", "title", "company", "location", "remote", "salary", "url", "posted_at", "source")},

@@ -12,11 +12,19 @@ seen_jobs keeps the last ~1000 ids/urls so 24/7 runs never re-send a job.
 
 from __future__ import annotations
 
+import datetime as _dt
+
 from cf_store import kv_get, kv_put
 
-_SEEN_MAX = 1000
-_JOBS_MAX = 100
+
+def _now_iso() -> str:
+    return _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")
+
+
+_SEEN_MAX = 5000
+_JOBS_MAX = 4000      # "all jobs forever" — large persistent, deduped archive
 _RECENT_MAX = 60
+_DESC_MAX = 600       # trim descriptions so the archive stays within KV size limits
 
 
 def get_seen() -> list[str]:
@@ -51,8 +59,72 @@ def store_recent(recent_jobs: list[dict]) -> None:
     kv_put("recent_jobs", out[:_RECENT_MAX])
 
 
+def _slim(job: dict) -> dict:
+    j = dict(job)
+    if j.get("description"):
+        j["description"] = j["description"][:_DESC_MAX]
+    return j
+
+
 def store_jobs(ranked: list[dict]) -> None:
-    kv_put("jobs", ranked[:_JOBS_MAX])
+    """Merge this run's ranked jobs into the PERMANENT, deduped archive.
+
+    Existing jobs keep their status/flags (e.g. applied, sent); new jobs are
+    prepended. Deduped by id (and url) so the All Jobs tab never shows a
+    duplicate and never loses a previously-discovered job.
+    """
+    existing = kv_get("jobs", []) or []
+    if not isinstance(existing, list):
+        existing = []
+
+    by_key: dict[str, dict] = {}
+    order: list[str] = []
+
+    def key_of(j):
+        return j.get("id") or (j.get("url") or "").strip().lower()
+
+    # keep existing first (preserve their flags), newest-run info merged in
+    for j in existing:
+        k = key_of(j)
+        if not k or k in by_key:
+            continue
+        by_key[k] = j
+        order.append(k)
+
+    for j in ranked:
+        k = key_of(j)
+        if not k:
+            continue
+        if k in by_key:
+            # refresh score/why but preserve status flags already stored
+            prev = by_key[k]
+            merged = {**_slim(j), **{f: prev[f] for f in ("status", "sent_at", "applied_at", "cv_url", "cover_url") if f in prev}}
+            by_key[k] = merged
+        else:
+            entry = _slim(j)
+            entry.setdefault("status", "discovered")
+            entry["first_seen"] = entry.get("first_seen") or _now_iso()
+            by_key[k] = entry
+            order.insert(0, k)  # newest first
+
+    archive = [by_key[k] for k in order][:_JOBS_MAX]
+    kv_put("jobs", archive)
+
+
+def mark_job_status(job_key: str, status: str, extra: dict | None = None) -> bool:
+    """Update one archived job's status (e.g. 'applied', 'sent'). Matches by
+    id OR url. Returns True if a job was updated."""
+    jobs = kv_get("jobs", []) or []
+    changed = False
+    for j in jobs:
+        if j.get("id") == job_key or (j.get("url") or "").strip().lower() == job_key.strip().lower():
+            j["status"] = status
+            if extra:
+                j.update(extra)
+            changed = True
+    if changed:
+        kv_put("jobs", jobs)
+    return changed
 
 
 def record_application(entry: dict) -> None:

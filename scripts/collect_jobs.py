@@ -330,6 +330,16 @@ def collect_all(search: dict, settings: dict) -> list[dict]:
     seen_ids: set[str] = set()
     batch: list[dict] = []
 
+    def _absorb(jobs):
+        for job in jobs:
+            key = (job.get("url") or "").strip().lower()
+            if job["id"] in seen_ids or (key and key in seen_urls):
+                continue
+            seen_ids.add(job["id"])
+            if key:
+                seen_urls.add(key)
+            batch.append(job)
+
     for source in sources:
         fn = _COLLECTORS.get(source)
         if not fn:
@@ -342,21 +352,33 @@ def collect_all(search: dict, settings: dict) -> list[dict]:
         else:
             queries = rotated[:cap]
 
+        # Adzuna: query EACH configured country database (multi-country support).
+        if source == "adzuna":
+            for country in _adzuna_countries(search):
+                csearch = {**search, "adzuna_country": country}
+                for title, loc in queries:
+                    try:
+                        _absorb(fn(title, loc, csearch, settings))
+                    except Exception as exc:
+                        log_issue("collect_jobs", f"adzuna {country} crashed: {exc}", "warning")
+            continue
+
         for title, loc in queries:
             try:
-                jobs = fn(title, loc, search, settings)
+                _absorb(fn(title, loc, search, settings))
             except Exception as exc:
                 log_issue("collect_jobs", f"{source} crashed: {exc}", "warning")
-                jobs = []
-            for job in jobs:
-                key = (job.get("url") or "").strip().lower()
-                if job["id"] in seen_ids or (key and key in seen_urls):
-                    continue
-                seen_ids.add(job["id"])
-                if key:
-                    seen_urls.add(key)
-                batch.append(job)
     return batch
+
+
+def _adzuna_countries(search: dict) -> list[str]:
+    """List of Adzuna country codes to search — dashboard-editable, not hardcoded.
+    Prefers search.adzuna_countries[]; falls back to single adzuna_country/env/gb."""
+    multi = search.get("adzuna_countries")
+    if isinstance(multi, list) and multi:
+        return [c.strip().lower() for c in multi if c and c.strip()]
+    single = (search.get("adzuna_country") or os.getenv("ADZUNA_COUNTRY") or "gb").strip().lower()
+    return [single]
 
 
 def _apify_allowed(settings: dict) -> bool:

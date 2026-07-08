@@ -33,21 +33,21 @@ def _api(method: str) -> str:
     return f"https://api.telegram.org/bot{TOKEN}/{method}"
 
 
-def send_message(text: str, disable_preview: bool = False) -> bool:
+def send_message(text: str, disable_preview: bool = False, reply_markup: dict | None = None) -> bool:
     if not enabled():
         print(f"[telegram:noop] {text[:200]}")
         return True
+    data = {
+        "chat_id": CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": disable_preview,
+    }
+    if reply_markup:
+        import json as _json
+        data["reply_markup"] = _json.dumps(reply_markup)
     try:
-        resp = requests.post(
-            _api("sendMessage"),
-            data={
-                "chat_id": CHAT_ID,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": disable_preview,
-            },
-            timeout=_TIMEOUT,
-        )
+        resp = requests.post(_api("sendMessage"), data=data, timeout=_TIMEOUT)
         resp.raise_for_status()
         return True
     except requests.RequestException as exc:
@@ -98,9 +98,30 @@ def _job_caption(job: dict) -> str:
     )
 
 
-def send_job(job: dict, files: dict) -> bool:
-    """files: {'cv_pdf': Path, 'cover_pdf': Path, 'cv_txt': Path}"""
-    ok = send_message(_job_caption(job))
+def _apply_steps_text(job: dict, cv_data: dict) -> str:
+    steps = (cv_data or {}).get("apply_steps") or []
+    if not steps:
+        return ""
+    lines = ["\n📝 <b>How to apply</b>"]
+    for i, s in enumerate(steps[:6], 1):
+        lines.append(f"{i}. {html.escape(str(s))}")
+    return "\n".join(lines)
+
+
+def _applied_keyboard(job: dict) -> dict:
+    # callback_data ≤ 64 bytes; job id like "adzuna:abcd1234..." fits.
+    jid = (job.get("id") or job.get("url") or "")[:60]
+    return {"inline_keyboard": [[
+        {"text": "✅ Mark as Applied", "callback_data": f"ap:{jid}"},
+        {"text": "🔗 Open job", "url": job.get("url", "") or "https://t.me"},
+    ]]}
+
+
+def send_job(job: dict, files: dict, cv_data: dict | None = None) -> bool:
+    """files: {'cv_pdf', 'cover_pdf', 'cv_txt'}; cv_data carries apply_steps."""
+    caption = _job_caption(job) + _apply_steps_text(job, cv_data or {})
+    ok = send_message(caption, reply_markup=_applied_keyboard(job))
+
     cv_pdf = files.get("cv_pdf")
     cover_pdf = files.get("cover_pdf")
     cv_txt = files.get("cv_txt")

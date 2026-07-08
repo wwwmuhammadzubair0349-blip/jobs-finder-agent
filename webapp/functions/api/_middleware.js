@@ -3,7 +3,7 @@
 import { verifySession } from "../_shared/auth.js";
 import { unauthorized } from "../_shared/kv.js";
 
-const PUBLIC_PATHS = ["/api/login", "/api/logout"];
+const PUBLIC_PATHS = ["/api/login", "/api/logout", "/api/telegram"];
 
 export async function onRequest(context) {
   const { request, env, next, data } = context;

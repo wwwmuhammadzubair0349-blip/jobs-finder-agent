@@ -34,6 +34,20 @@ def slugify(job: dict) -> str:
     return (slug or "job")[:60]
 
 
+def _titlecase_token(s: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "_", (s or "").strip()).strip("_")
+
+
+def file_basename(job: dict, profile: dict) -> str:
+    """FirstName_LastName_JobTitle → e.g. Muhammad_Zubair_Electrical_Engineer."""
+    full = (profile.get("full_name") or "Candidate").split()
+    first = _titlecase_token(full[0]) if full else "Candidate"
+    last = _titlecase_token(full[-1]) if len(full) > 1 else ""
+    name = f"{first}_{last}".strip("_") or "Candidate"
+    jobt = _titlecase_token(job.get("title", "") or "Job")[:50]
+    return f"{name}_{jobt}".strip("_")
+
+
 def _render_html(cv_data: dict, profile: dict, job: dict) -> tuple[str, str]:
     cv_html = _env.get_template("cv.html").render(cv=cv_data, profile=profile, job=job)
     cover_html = _env.get_template("cover_letter.html").render(
@@ -123,14 +137,15 @@ def render(job: dict, profile: dict, cv_data: dict, out_dir: Path) -> dict:
     (job_dir / "cv.html").write_text(cv_html, encoding="utf-8")
     (job_dir / "cover_letter.html").write_text(cover_html, encoding="utf-8")
 
-    cv_pdf = job_dir / "cv.pdf"
-    cover_pdf = job_dir / "cover_letter.pdf"
-    cv_txt = job_dir / "cv.txt"
+    base = file_basename(job, profile)
+    cv_pdf = job_dir / f"{base}_CV.pdf"
+    cover_pdf = job_dir / f"{base}_CoverLetter.pdf"
+    cv_txt = job_dir / f"{base}_CV.txt"
     cv_txt.write_text(_plain_text_cv(cv_data, profile), encoding="utf-8")
 
     _html_to_pdf(cv_html, cover_html, cv_pdf, cover_pdf)
 
-    return {"cv_pdf": cv_pdf, "cover_pdf": cover_pdf, "cv_txt": cv_txt, "slug": slug}
+    return {"cv_pdf": cv_pdf, "cover_pdf": cover_pdf, "cv_txt": cv_txt, "slug": slug, "basename": base}
 
 
 if __name__ == "__main__":

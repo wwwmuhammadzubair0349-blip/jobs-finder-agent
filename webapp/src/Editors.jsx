@@ -151,11 +151,18 @@ export function SearchEditor({ initial, onSave }) {
       </div>
 
       <div className="field">
-        <label>Adzuna country</label>
-        <select value={s.adzuna_country || "gb"} onChange={(e) => set("adzuna_country", e.target.value)}>
-          {[["au","Australia"],["gb","United Kingdom"],["us","United States"],["ca","Canada"],["de","Germany"],["fr","France"],["in","India"],["nz","New Zealand"],["nl","Netherlands"],["sg","Singapore"],["za","South Africa"],["ae","UAE"]].map(([c,n]) => <option key={c} value={c}>{n}</option>)}
-        </select>
-        <div className="hint">Which country's Adzuna database to search. Change anytime — not fixed in code.</div>
+        <label>Adzuna countries (tap to toggle — pick as many as you want)</label>
+        <div className="job-meta">
+          {[["gb","UK"],["us","USA"],["au","Australia"],["ca","Canada"],["de","Germany"],["fr","France"],["it","Italy"],["nl","Netherlands"],["at","Austria"],["pl","Poland"],["in","India"],["nz","N.Zealand"],["sg","Singapore"],["za","S.Africa"],["br","Brazil"],["mx","Mexico"]].map(([c,n]) => {
+            const on = (s.adzuna_countries || []).includes(c);
+            return <button key={c} className="tag" style={on ? { background: "var(--accent-weak)", borderColor: "var(--accent)", color: "var(--accent)" } : {}} onClick={() => {
+              const cur = new Set(s.adzuna_countries || []);
+              cur.has(c) ? cur.delete(c) : cur.add(c);
+              set("adzuna_countries", Array.from(cur));
+            }}>{on ? "✓ " : ""}{n}</button>;
+          })}
+        </div>
+        <div className="hint">Adzuna searches each selected country. Note: Adzuna has no Gulf database — use Jooble/Apify for UAE/Saudi/Qatar.</div>
       </div>
       <div className="grid2">
         <div className="field"><label>Posted within (days)</label><input type="number" value={s.posted_within_days ?? 7} onChange={(e) => set("posted_within_days", parseInt(e.target.value || "7", 10))} /></div>

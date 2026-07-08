@@ -78,6 +78,11 @@ function Dashboard({ user, onLogout, theme, setTheme }) {
     finally { setTimeout(() => setRunning(false), 4000); }
   }
 
+  async function sendJob(job) {
+    await api.sendJob(job);
+    flash("Queued → preparing CV & sending to Telegram");
+  }
+
   const issues = data?.issues || [];
   const errCount = issues.filter((i) => i.level === "error" && withinHours(i.at, 48)).length;
 
@@ -93,9 +98,11 @@ function Dashboard({ user, onLogout, theme, setTheme }) {
         <button className="icon-btn" title="Sign out" onClick={onLogout}><IconOut /></button>
       </div>
 
+      <ActivityBar latest={data?.latest_run} />
+
       <div className="content">
-        {tab === "today" && <Today data={data} onApp={setApp} />}
-        {tab === "jobs" && <AllJobs data={data} onApp={setApp} />}
+        {tab === "today" && <Today data={data} onApp={setApp} onSend={sendJob} />}
+        {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} />}
         {tab === "apps" && <Applications data={data} />}
         {tab === "profile" && (config ? <ProfileEditor key="p" initial={config.profile} onSave={saveConfig} /> : <Loading />)}
         {tab === "search" && (config ? <SearchEditor key="s" initial={config.search} onSave={saveConfig} /> : <Loading />)}
@@ -127,8 +134,39 @@ function RunState({ latest }) {
   return <span className="pill"><span className="status-dot" style={{ background: color }} />{status}</span>;
 }
 
+const AGENT_LABELS = {
+  collect_jobs: "🔎 Searching job boards",
+  rank_jobs: "📊 Scoring matches",
+  verify_links: "🔗 Verifying apply links",
+  agent_cv: "✍️ Writing tailored CV & cover letter",
+  render_cv: "📄 Rendering PDFs",
+  publish_cvs: "☁️ Publishing CV",
+  send_telegram: "✈️ Sending to Telegram",
+  agent_analyst: "🧠 Writing daily brief",
+};
+
+function ActivityBar({ latest }) {
+  if (!latest || latest.status !== "running") return null;
+  const cur = latest.current || {};
+  const agent = cur.agent;
+  const label = AGENT_LABELS[agent] || (agent ? `⚙️ ${agent}` : "⚙️ Working…");
+  return (
+    <div style={{
+      margin: "10px 16px 0", padding: "11px 14px", borderRadius: 12,
+      background: "var(--accent-weak)", border: "1px solid var(--accent)",
+      display: "flex", alignItems: "center", gap: 10,
+    }} className="fade">
+      <span className="spinner" />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--accent)" }}>{label}</div>
+        {cur.job && <div style={{ fontSize: 12, color: "var(--ink-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>on: {cur.job}</div>}
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Today ---------------- */
-function Today({ data, onApp }) {
+function Today({ data, onApp, onSend }) {
   if (!data) return <Loading />;
   const recent = data.recent_jobs || [];
   const apps = data.applications || [];
@@ -148,13 +186,13 @@ function Today({ data, onApp }) {
       <p className="section-title">Fresh matches</p>
       {recent.length === 0
         ? <Empty icon="🛰" title="No jobs yet" sub="The next search tick will drop new matches here." />
-        : recent.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} />)}
+        : recent.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />)}
     </div>
   );
 }
 
 /* ---------------- All jobs ---------------- */
-function AllJobs({ data, onApp }) {
+function AllJobs({ data, onApp, onSend }) {
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState(null);
   if (!data) return <Loading />;
@@ -187,8 +225,8 @@ function AllJobs({ data, onApp }) {
       )}
       {filtered.length === 0 ? <Empty title="No matching jobs" /> :
         filtered.map((j) => (
-          <div key={j.id || j.url} onClick={(e) => { if (e.target.tagName !== "A" && e.target.tagName !== "SELECT" && e.target.tagName !== "OPTION") setDetail(j); }}>
-            <JobCard job={j} appStatus={appMap[j.url]} onStatus={onApp} />
+          <div key={j.id || j.url} onClick={(e) => { if (!["A", "SELECT", "OPTION", "BUTTON"].includes(e.target.tagName)) setDetail(j); }}>
+            <JobCard job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />
           </div>
         ))}
       {detail && <JobModal job={detail} onClose={() => setDetail(null)} />}

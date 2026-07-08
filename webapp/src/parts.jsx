@@ -32,13 +32,23 @@ export function ScoreRing({ score }) {
 
 const STATUSES = ["saved", "applied", "interview", "rejected", "offer"];
 
-export function JobCard({ job, appStatus, onStatus }) {
+export function JobCard({ job, appStatus, onStatus, onSend }) {
   const url = job.url;
+  const [sending, setSending] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
+  const applied = job.status === "applied" || appStatus === "applied";
+
+  async function send() {
+    if (!onSend) return;
+    setSending(true);
+    try { await onSend(job); setSent(true); } finally { setSending(false); }
+  }
+
   return (
     <div className="card fade">
       <div className="job-top">
         <div>
-          <div className="job-title">{job.title}</div>
+          <div className="job-title">{job.title} {applied && <span className="tag" style={{ color: "var(--ok)", borderColor: "var(--ok)" }}>✓ Applied</span>}</div>
           <div className="job-sub">{job.company}{job.location ? ` · ${job.location}` : ""}</div>
         </div>
         {job.match_score != null && <ScoreRing score={job.match_score} />}
@@ -48,14 +58,16 @@ export function JobCard({ job, appStatus, onStatus }) {
         {job.remote && <span className="tag remote">🌍 Remote</span>}
         {job.salary && <span className="tag">💰 {job.salary}</span>}
         {job.source && <span className="tag">{job.source}</span>}
+        {job.status && job.status !== "discovered" && <span className="tag">{job.status}</span>}
       </div>
 
       {job.why && <div className="why">🎯 {job.why}</div>}
 
       <div className="row-actions">
         {url && <a className="btn primary sm" href={url} target="_blank" rel="noreferrer">Apply <IconExt /></a>}
+        {onSend && <button className="btn sm" onClick={send} disabled={sending || sent}>{sent ? "✓ Sent" : sending ? "Sending…" : "✈ Send to Telegram"}</button>}
         {job.cv_url && <a className="btn sm" href={job.cv_url} target="_blank" rel="noreferrer">CV</a>}
-        {job.cover_url && <a className="btn sm" href={job.cover_url} target="_blank" rel="noreferrer">Cover letter</a>}
+        {job.cover_url && <a className="btn sm" href={job.cover_url} target="_blank" rel="noreferrer">Cover</a>}
         {onStatus && (
           <select className="status" value={appStatus || ""} onChange={(e) => onStatus(job, e.target.value)}>
             <option value="" disabled>Track…</option>

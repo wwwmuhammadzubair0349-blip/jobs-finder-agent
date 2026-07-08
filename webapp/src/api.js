@@ -20,4 +20,5 @@ export const api = {
   saveConfig: (section, data) => req("/config", { method: "POST", body: JSON.stringify({ section, data }) }),
   setApplication: (entry) => req("/application", { method: "POST", body: JSON.stringify(entry) }),
   runNow: () => req("/run", { method: "POST" }),
+  sendJob: (job) => req("/send-job", { method: "POST", body: JSON.stringify({ job }) }),
 };

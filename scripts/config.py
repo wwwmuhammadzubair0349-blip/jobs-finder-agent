@@ -44,6 +44,7 @@ def _local_config() -> dict:
         "timezone": settings.get("timezone", "UTC"),
         "max_per_tick": settings.get("max_per_tick", 5),
         "match_threshold": settings.get("match_threshold", 55),
+        "max_queries_per_source": settings.get("max_queries_per_source", 6),
         "credit_markers": settings.get("credit_markers", {}),
     }
 
@@ -84,6 +85,7 @@ def get_settings() -> dict:
         "timezone": cfg.get("timezone", "UTC"),
         "max_per_tick": cfg.get("max_per_tick", 5),
         "match_threshold": cfg.get("match_threshold", 55),
+        "max_queries_per_source": cfg.get("max_queries_per_source", 6),
         "credit_markers": cfg.get("credit_markers", {}) or {},
     }
 

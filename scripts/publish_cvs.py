@@ -64,16 +64,13 @@ def publish(slug: str, files: dict) -> dict | None:
     if not enabled():
         return None
 
-    mapping = {
-        "cv_pdf": ("cv.pdf", "cv_url"),
-        "cover_pdf": ("cover_letter.pdf", "cover_url"),
-        "cv_txt": ("cv.txt", "cv_txt_url"),
-    }
+    mapping = {"cv_pdf": "cv_url", "cover_pdf": "cover_url", "cv_txt": "cv_txt_url"}
     urls: dict[str, str] = {}
-    for fkey, (fname, url_key) in mapping.items():
+    for fkey, url_key in mapping.items():
         path = files.get(fkey)
         if not path or not Path(path).exists():
             continue
+        fname = Path(path).name  # real FirstName_LastName_Job_CV.pdf name
         repo_path = f"cvs/{slug}/{fname}"
         if _put_file(repo_path, Path(path).read_bytes()):
             urls[url_key] = f"{BASE_URL}/{repo_path}"
