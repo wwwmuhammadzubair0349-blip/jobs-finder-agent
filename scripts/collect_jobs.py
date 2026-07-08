@@ -287,14 +287,33 @@ _COLLECTORS: dict[str, Callable] = {
 
 
 def collect_all(search: dict, settings: dict) -> list[dict]:
-    """Run every enabled source across job_titles x locations; dedupe by url."""
+    """Run every enabled source across job_titles x locations; dedupe by url.
+
+    To protect free-tier API limits when the user picks many titles/locations,
+    each source only fires up to `max_queries_per_source` (default 12) title x
+    location combinations per tick. A time-based offset rotates WHICH combos run
+    each tick, so over successive ticks the whole matrix gets covered without
+    ever blowing a daily request budget.
+    """
+    import datetime as _dt
+
     sources = search.get("sources") or ["remotive"]
     titles = search.get("job_titles") or ["Software Engineer"]
     locations = search.get("locations") or ["Remote"]
+    cap = int(settings.get("max_queries_per_source", 6) or 6)
 
     # Credit-saver gate for Apify (checked here; marker updated in run_all)
     if "apify" in sources and not _apify_allowed(settings):
         sources = [s for s in sources if s != "apify"]
+
+    # Full combo matrix, then a rotating window of size `cap`.
+    combos = [(t, l) for t in titles for l in locations]
+    if combos:
+        tick_index = int(_dt.datetime.now(_dt.timezone.utc).timestamp() // 1200)  # ~20-min buckets
+        start = (tick_index * cap) % len(combos)
+        rotated = combos[start:] + combos[:start]
+    else:
+        rotated = []
 
     seen_urls: set[str] = set()
     seen_ids: set[str] = set()
@@ -305,26 +324,27 @@ def collect_all(search: dict, settings: dict) -> list[dict]:
         if not fn:
             log_issue("collect_jobs", f"unknown source '{source}'", "warning")
             continue
-        for title in titles:
-            for loc in locations:
-                try:
-                    jobs = fn(title, loc, search, settings)
-                except Exception as exc:
-                    log_issue("collect_jobs", f"{source} crashed: {exc}", "warning")
-                    jobs = []
-                for job in jobs:
-                    key = (job.get("url") or "").strip().lower()
-                    if job["id"] in seen_ids or (key and key in seen_urls):
-                        continue
-                    seen_ids.add(job["id"])
-                    if key:
-                        seen_urls.add(key)
-                    batch.append(job)
-                # remoteok returns the full feed regardless of location; only hit once
-                if source == "remoteok":
-                    break
-            if source == "remoteok":
-                break
+
+        # remoteok returns the whole feed regardless of query → hit it once.
+        if source == "remoteok":
+            queries = [("", "")]
+        else:
+            queries = rotated[:cap]
+
+        for title, loc in queries:
+            try:
+                jobs = fn(title, loc, search, settings)
+            except Exception as exc:
+                log_issue("collect_jobs", f"{source} crashed: {exc}", "warning")
+                jobs = []
+            for job in jobs:
+                key = (job.get("url") or "").strip().lower()
+                if job["id"] in seen_ids or (key and key in seen_urls):
+                    continue
+                seen_ids.add(job["id"])
+                if key:
+                    seen_urls.add(key)
+                batch.append(job)
     return batch
 
 
