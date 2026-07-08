@@ -144,7 +144,9 @@ def collect_adzuna(query, location, search, settings) -> list[dict]:
     if not (app_id and app_key):
         return []
 
-    country = (os.getenv("ADZUNA_COUNTRY") or "gb").strip().lower()
+    # Country is dashboard-editable (search.adzuna_country) → env → default.
+    # NOT hardcoded: change it anytime from the Search tab without touching code.
+    country = (search.get("adzuna_country") or os.getenv("ADZUNA_COUNTRY") or "gb").strip().lower()
     params = {
         "app_id": app_id,
         "app_key": app_key,

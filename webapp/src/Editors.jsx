@@ -150,6 +150,13 @@ export function SearchEditor({ initial, onSave }) {
         <div className="hint">remotive & remoteok need no key. adzuna/jooble need a free key; apify costs credits (throttled).</div>
       </div>
 
+      <div className="field">
+        <label>Adzuna country</label>
+        <select value={s.adzuna_country || "gb"} onChange={(e) => set("adzuna_country", e.target.value)}>
+          {[["au","Australia"],["gb","United Kingdom"],["us","United States"],["ca","Canada"],["de","Germany"],["fr","France"],["in","India"],["nz","New Zealand"],["nl","Netherlands"],["sg","Singapore"],["za","South Africa"],["ae","UAE"]].map(([c,n]) => <option key={c} value={c}>{n}</option>)}
+        </select>
+        <div className="hint">Which country's Adzuna database to search. Change anytime — not fixed in code.</div>
+      </div>
       <div className="grid2">
         <div className="field"><label>Posted within (days)</label><input type="number" value={s.posted_within_days ?? 7} onChange={(e) => set("posted_within_days", parseInt(e.target.value || "7", 10))} /></div>
         <div className="field"><label>Match threshold (0–100)</label><input type="number" value={s.match_threshold ?? 55} onChange={(e) => set("match_threshold", parseInt(e.target.value || "55", 10))} /></div>

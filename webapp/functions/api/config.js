@@ -14,7 +14,7 @@ const DEFAULT_PROFILE = {
 const DEFAULT_SEARCH = {
   job_titles: [], locations: [], remote: true, seniority: "mid",
   keywords_include: [], keywords_exclude: [],
-  sources: ["remotive"], posted_within_days: 7,
+  sources: ["remotive"], adzuna_country: "gb", posted_within_days: 7,
   match_threshold: 55, max_per_tick: 5,
 };
 const DEFAULT_SCHEDULE = {
