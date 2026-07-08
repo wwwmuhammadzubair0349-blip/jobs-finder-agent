@@ -1,0 +1,29 @@
+# Secrets & env
+.env
+.env.local
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated artifacts
+output/
+site/cvs/
+site/index.html
+
+# Local KV / state fallback
+config/_local_kv.json
+
+# Node / webapp
+webapp/node_modules/
+webapp/dist/
+webapp/.wrangler/
+webapp/.dev.vars
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

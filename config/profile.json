@@ -1,0 +1,39 @@
+{
+  "full_name": "Your Name",
+  "headline": "Software Engineer",
+  "location": "City, Country",
+  "phone": "+00 000 000 000",
+  "email": "you@example.com",
+  "links": {
+    "linkedin": "https://linkedin.com/in/you",
+    "portfolio": "https://yoursite.dev",
+    "github": "https://github.com/you"
+  },
+  "professional_summary": "Two to three lines summarising who you are, your strongest areas, and what you're looking for. This gets rewritten per job by the AI, but keep a solid baseline here.",
+  "skills": ["Python", "JavaScript", "SQL", "React", "REST APIs"],
+  "tools": ["Git", "Docker", "AWS", "PostgreSQL"],
+  "languages": ["English (native)"],
+  "experience": [
+    {
+      "title": "Software Engineer",
+      "company": "Example Corp",
+      "location": "Remote",
+      "start": "2022-01",
+      "end": "present",
+      "bullets": [
+        "Built and shipped features used by X users, improving Y by Z%.",
+        "Owned the backend for the payments service handling N requests/day.",
+        "Collaborated with design and product to deliver quarterly roadmap items."
+      ]
+    }
+  ],
+  "education": [
+    { "degree": "BSc Computer Science", "school": "Some University", "year": "2021" }
+  ],
+  "certifications": [],
+  "target_roles": ["Software Engineer", "Backend Engineer"],
+  "seniority": "mid",
+  "work_pref": "remote",
+  "min_salary": 0,
+  "willing_to_relocate": false
+}

@@ -1,0 +1,18 @@
+# Cloudflare Pages config. The dashboard is deployed as a Pages project with
+# these Functions. Bind the SAME KV namespace the pipeline writes to as `KV`.
+#
+# In the Pages dashboard: Settings → Functions → KV namespace bindings →
+#   Variable name: KV   →  your namespace.
+# And Settings → Environment variables (Production) → add:
+#   AUTH_USER, AUTH_PASSWORD_HASH, AUTH_SECRET, GITHUB_PAT, CODE_REPO
+#
+# This file is mainly for local `wrangler pages dev`.
+
+name = "jobs-finder-dashboard"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-09-01"
+
+# Local dev binding (production binding is set in the Pages dashboard UI).
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"

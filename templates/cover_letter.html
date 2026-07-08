@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{ profile.full_name }} — Cover Letter</title>
+<style>
+  :root { --ink: #1a1d24; --muted: #565d6b; --accent: #1f4fd8; --hair: #d8dce3; }
+  * { box-sizing: border-box; }
+  @page { size: A4; margin: 20mm 20mm; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Calibri", "Segoe UI", Arial, sans-serif;
+    color: var(--ink); font-size: 11pt; line-height: 1.6;
+  }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 10px; margin-bottom: 22px; }
+  .name { font-size: 20pt; font-weight: 700; margin: 0; }
+  .headline { color: var(--accent); font-weight: 600; margin: 2px 0 6px; }
+  .contact { color: var(--muted); font-size: 9.6pt; }
+  .contact .sep { color: var(--hair); padding: 0 6px; }
+  .meta { color: var(--muted); font-size: 10pt; margin-bottom: 18px; }
+  .role { color: var(--ink); font-weight: 600; }
+  p { margin: 0 0 13px; }
+  .greeting { margin-bottom: 15px; }
+  .signoff { margin-top: 22px; white-space: pre-line; }
+</style>
+</head>
+<body>
+  <header>
+    <h1 class="name">{{ profile.full_name }}</h1>
+    <div class="headline">{{ profile.headline }}</div>
+    <div class="contact">
+      {% if profile.email %}<span>{{ profile.email }}</span>{% endif %}
+      {% if profile.phone %}<span class="sep">•</span><span>{{ profile.phone }}</span>{% endif %}
+      {% if profile.location %}<span class="sep">•</span><span>{{ profile.location }}</span>{% endif %}
+    </div>
+  </header>
+
+  <div class="meta">
+    {{ today }}<br />
+    <span class="role">Re: {{ job.title }}{% if job.company %} at {{ job.company }}{% endif %}</span>
+  </div>
+
+  <p class="greeting">{{ cover.greeting }}</p>
+  {% for para in cover.paragraphs %}
+  <p>{{ para }}</p>
+  {% endfor %}
+  <div class="signoff">{{ cover.signoff }}</div>
+</body>
+</html>

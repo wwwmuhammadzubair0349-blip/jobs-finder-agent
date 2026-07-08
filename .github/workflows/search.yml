@@ -1,0 +1,72 @@
+name: jobs-search
+
+# 24/7 continuous search. Runs every 20 minutes round the clock plus on demand
+# (the dashboard "Run now" button triggers workflow_dispatch). There is NO
+# daily-time gate — the seen_jobs dedupe (rank step) prevents repeats, and a
+# tick with no new jobs exits in seconds without touching the LLM/Playwright.
+#
+# ⚠ Make this repo PUBLIC for unlimited free Actions minutes. A private repo's
+#    2000 free min/month will not cover 24/7 runs.
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"     # every 20 minutes, 24/7
+  workflow_dispatch: {}         # manual + dashboard Run-now button
+
+# Never let two ticks overlap (would risk double-processing before seen_jobs
+# is written). A new run cancels an in-flight one.
+concurrency:
+  group: jobs-search
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      PYTHONIOENCODING: "utf-8"
+      # LLM (Groq with failover — comma-separated keys)
+      LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      LLM_API_KEYS: ${{ secrets.LLM_API_KEYS }}
+      # Job sources
+      ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+      ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+      ADZUNA_COUNTRY: ${{ secrets.ADZUNA_COUNTRY }}
+      JOOBLE_KEY: ${{ secrets.JOOBLE_KEY }}
+      APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+      APIFY_ACTOR: ${{ secrets.APIFY_ACTOR }}
+      # Telegram
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Cloudflare KV
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+      # CV hosting (public job-cvs repo)
+      CVS_DEPLOY_TOKEN: ${{ secrets.CVS_DEPLOY_TOKEN }}
+      CVS_REPO: ${{ secrets.CVS_REPO }}
+      CVS_BASE_URL: ${{ secrets.CVS_BASE_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Chromium for Playwright
+        run: python -m playwright install chromium --with-deps
+
+      - name: Run search tick
+        run: python scripts/run_all.py
