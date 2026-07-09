@@ -12,7 +12,7 @@ const TABS = [
   { id: "profile", label: "Profile", icon: IconProfile },
   { id: "search", label: "Search", icon: IconSearch },
   { id: "schedule", label: "Schedule", icon: IconClock },
-  { id: "issues", label: "Issues", icon: IconAlert },
+  { id: "issues", label: "Agents", icon: IconAlert },
 ];
 
 export default function App() {
@@ -107,7 +107,7 @@ function Dashboard({ user, onLogout, theme, setTheme }) {
         {tab === "profile" && (config ? <ProfileEditor key="p" initial={config.profile} onSave={saveConfig} /> : <Loading />)}
         {tab === "search" && (config ? <SearchEditor key="s" initial={config.search} onSave={saveConfig} /> : <Loading />)}
         {tab === "schedule" && (config ? <ScheduleEditor key="c" initial={config.schedule} onSave={saveConfig} /> : <Loading />)}
-        {tab === "issues" && <Issues issues={issues} status={data?.agents_status || []} />}
+        {tab === "issues" && <Agents issues={issues} status={data?.agents_status || []} latest={data?.latest_run} />}
       </div>
 
       <nav className="tabbar">
@@ -145,6 +145,57 @@ const AGENT_LABELS = {
   agent_analyst: "🧠 Writing daily brief",
 };
 
+// Friendly names for the Agent-team cards.
+const AGENTS = [
+  { key: "collect_jobs", name: "Scraper", emoji: "🔎" },
+  { key: "rank_jobs", name: "Ranker", emoji: "📊" },
+  { key: "verify_links", name: "Link Checker", emoji: "🔗" },
+  { key: "agent_cv", name: "Writer", emoji: "✍️" },
+  { key: "render_cv", name: "Designer", emoji: "📄" },
+  { key: "publish_cvs", name: "Publisher", emoji: "☁️" },
+  { key: "send_telegram", name: "Telegram", emoji: "✈️" },
+  { key: "agent_analyst", name: "Analyst", emoji: "🧠" },
+];
+
+function AgentTeam({ status, current }) {
+  const byName = Object.fromEntries((status || []).map((s) => [s.name, s]));
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      {AGENTS.map((a) => {
+        const s = byName[a.key];
+        const active = current && current.agent === a.key;
+        const state = active ? "green" : s?.state || "gray";
+        const dot = state === "green" ? "var(--ok)" : state === "red" ? "var(--err)" : state === "yellow" ? "var(--warn)" : "var(--hair-strong)";
+        return (
+          <div className="card" key={a.key} style={{ margin: 0, padding: 12, ...(active ? { borderColor: "var(--accent)" } : {}) }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              {active ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <span className="status-dot" style={{ background: dot }} />}
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{a.emoji} {a.name}</span>
+            </div>
+            <div className="hint" style={{ marginTop: 4 }}>
+              {active ? "working now…" : s?.last_run ? `active · ${timeAgo(s.last_run)}` : "idle"}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LogTerminal({ latest }) {
+  const lines = latest?.log_tail || [];
+  return (
+    <div style={{
+      background: "#0d1117", color: "#c9d1d9", borderRadius: 12, padding: "12px 14px",
+      fontFamily: "var(--num)", fontSize: 11.5, lineHeight: 1.6, maxHeight: 220, overflow: "auto",
+      border: "1px solid var(--hair)",
+    }}>
+      {lines.length === 0 ? <div style={{ opacity: 0.5 }}>No recent activity.</div>
+        : lines.map((l, i) => <div key={i} style={{ whiteSpace: "pre-wrap" }}>{l}</div>)}
+    </div>
+  );
+}
+
 function ActivityBar({ latest }) {
   if (!latest || latest.status !== "running") return null;
   const cur = latest.current || {};
@@ -169,19 +220,21 @@ function ActivityBar({ latest }) {
 function Today({ data, onApp, onSend }) {
   if (!data) return <Loading />;
   const recent = data.recent_jobs || [];
+  const allJobs = data.jobs || [];
   const apps = data.applications || [];
   const appMap = Object.fromEntries(apps.map((a) => [a.job_url, a.status]));
-  const topMatch = recent.reduce((m, j) => Math.max(m, j.match_score || 0), 0);
-  const cvsReady = recent.filter((j) => j.cv_url).length;
-  const weekApps = apps.filter((a) => withinHours(a.at, 168)).length;
+  const total = allJobs.length;
+  const foundToday = allJobs.filter((j) => withinHours(j.first_seen || j.sent_at, 24)).length;
+  const appliedCount = apps.filter((a) => a.status === "applied").length + allJobs.filter((j) => j.status === "applied").length;
+  const interviews = apps.filter((a) => a.status === "interview").length;
 
   return (
     <div className="fade">
       <div className="kpis">
-        <Kpi value={recent.length} label="Jobs found" />
-        <Kpi value={`${Math.round(topMatch)}%`} label="Top match" />
-        <Kpi value={cvsReady} label="CVs ready" />
-        <Kpi value={weekApps} label="Applied / week" />
+        <Kpi value={total} label="Total jobs" />
+        <Kpi value={foundToday} label="Found today" />
+        <Kpi value={appliedCount} label="Applied" />
+        <Kpi value={interviews} label="Interviews" />
       </div>
       <p className="section-title">Fresh matches</p>
       {recent.length === 0
@@ -299,26 +352,21 @@ function Applications({ data }) {
   );
 }
 
-/* ---------------- Issues ---------------- */
-function Issues({ issues, status }) {
+/* ---------------- Agents ---------------- */
+function Agents({ issues, status, latest }) {
   const errors = issues.filter((i) => i.level === "error");
   const warns = issues.filter((i) => i.level !== "error");
   const [showWarns, setShowWarns] = useState(false);
+  const running = latest?.status === "running";
   return (
     <div className="fade">
-      <p className="section-title">Agent health</p>
-      <div className="card">
-        {status.length === 0 ? <div className="hint">No status recorded yet.</div> :
-          status.map((s) => (
-            <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
-              <span className={`status-dot dot-${s.state === "green" ? "green" : s.state === "red" ? "red" : "yellow"}`} />
-              <span style={{ flex: 1 }}>{s.name}</span>
-              <span className="hint">{timeAgo(s.last_run)}</span>
-            </div>
-          ))}
-      </div>
+      <p className="section-title">🤖 Agent team {running && <span style={{ color: "var(--info)" }}>· live</span>}</p>
+      <AgentTeam status={status} current={latest?.current} />
 
-      <p className="section-title">Errors (48h)</p>
+      <p className="section-title" style={{ marginTop: 18 }}>Live activity log</p>
+      <LogTerminal latest={latest} />
+
+      <p className="section-title" style={{ marginTop: 18 }}>Errors (48h)</p>
       {errors.length === 0 ? <div className="hint" style={{ padding: "0 2px 12px" }}>No errors 🎉</div> :
         errors.slice(0, 30).map((i, k) => (
           <div className="issue error" key={k}><div>{i.message}</div><div className="meta">{i.script} · {timeAgo(i.at)}</div></div>

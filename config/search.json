@@ -5,7 +5,7 @@
   "seniority": "mid",
   "keywords_include": ["python", "api"],
   "keywords_exclude": ["senior staff", "manager", "clearance"],
-  "sources": ["remotive", "remoteok", "adzuna", "jooble"],
+  "sources": ["remotive", "remoteok", "adzuna", "jooble", "apify"],
   "adzuna_country": "au",
   "posted_within_days": 7,
   "match_threshold": 55,

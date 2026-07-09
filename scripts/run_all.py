@@ -140,7 +140,7 @@ def _in_quiet_hours(settings: dict) -> bool:
 # Main tick                                                                    #
 # --------------------------------------------------------------------------- #
 def main() -> None:
-    from collect_jobs import _apify_allowed, collect_all
+    from collect_jobs import collect_all
     from rank_jobs import rank
     from sync_cf import add_seen, get_seen, store_jobs, store_recent
 
@@ -162,16 +162,6 @@ def main() -> None:
     run = step("collect_jobs", critical=True)
     raw = run(collect_all, search, settings) or []
     log(f"collected {len(raw)} raw jobs")
-
-    # mark apify run if it was actually used this tick
-    if "apify" in (search.get("sources") or []) and _apify_allowed(settings):
-        markers = dict(settings.get("credit_markers", {}) or {})
-        markers["apify_last_run_iso"] = _now_iso()
-        _cfg["credit_markers"] = markers
-        try:
-            save_config(_cfg)
-        except Exception:
-            pass
 
     seen = get_seen()
     run = step("rank_jobs", critical=True)

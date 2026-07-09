@@ -244,47 +244,173 @@ def collect_jooble(query, location, search, settings) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- #
-# Apify — paid credits, credit-saver throttled in rank/run layer              #
+# Apify — Indeed + Google Jobs across EVERY user-defined country.              #
+# 2-token failover, and a 72h cache so it only scrapes once every 3 days.      #
 # --------------------------------------------------------------------------- #
-def collect_apify(query, location, search, settings) -> list[dict]:
-    token = os.getenv("APIFY_TOKEN", "").strip()
-    actor = os.getenv("APIFY_ACTOR", "").strip()
-    if not (token and actor):
-        return []
-    try:
-        resp = requests.post(
-            f"https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items",
-            params={"token": token},
-            json={"queries": [query], "location": location, "rows": 25},
-            headers={"User-Agent": _UA},
-            timeout=120,
-        )
-        resp.raise_for_status()
-        rows = resp.json()
-    except Exception as exc:
-        log_issue("collect_jobs", f"apify '{query}': {exc}", "warning")
+
+# Country NAME → Indeed 2-letter code. Anything the user types that maps here
+# gets scraped; nothing is hardcoded to a region.
+_COUNTRY_CODES = {
+    "pakistan": "PK", "united arab emirates": "AE", "uae": "AE", "saudi arabia": "SA",
+    "qatar": "QA", "oman": "OM", "kuwait": "KW", "bahrain": "BH", "germany": "DE",
+    "italy": "IT", "netherlands": "NL", "france": "FR", "spain": "ES", "malta": "MT",
+    "united kingdom": "GB", "uk": "GB", "united states": "US", "usa": "US", "us": "US",
+    "canada": "CA", "australia": "AU", "new zealand": "NZ", "india": "IN",
+    "singapore": "SG", "south africa": "ZA", "ireland": "IE", "belgium": "BE",
+    "switzerland": "CH", "austria": "AT", "poland": "PL", "portugal": "PT",
+    "sweden": "SE", "norway": "NO", "denmark": "DK", "turkey": "TR", "egypt": "EG",
+    "jordan": "JO", "lebanon": "LB", "morocco": "MA", "nigeria": "NG", "kenya": "KE",
+    "malaysia": "MY", "philippines": "PH", "indonesia": "ID", "japan": "JP",
+    "brazil": "BR", "mexico": "MX",
+}
+
+
+def _apify_tokens() -> list[str]:
+    multi = os.getenv("APIFY_TOKENS", "").strip()
+    if multi:
+        toks = [t.strip() for t in multi.split(",") if t.strip()]
+    else:
+        toks = [t for t in [os.getenv("APIFY_TOKEN", "").strip()] if t]
+    seen: set[str] = set()
+    return [t for t in toks if not (t in seen or seen.add(t))]
+
+
+def _country_code(name: str) -> str | None:
+    return _COUNTRY_CODES.get((name or "").strip().lower())
+
+
+def _apify_run(actor: str, payload: dict, timeout: int = 240) -> list[dict]:
+    """Run an actor with token failover; return dataset items (or [])."""
+    tokens = _apify_tokens()
+    for idx, tok in enumerate(tokens):
+        try:
+            resp = requests.post(
+                f"https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items",
+                params={"token": tok},
+                json=payload,
+                headers={"User-Agent": _UA},
+                timeout=timeout,
+            )
+            if resp.status_code in (401, 402, 403, 429) and idx < len(tokens) - 1:
+                log_issue("collect_jobs", f"apify token #{idx+1} failed ({resp.status_code}) → next", "warning")
+                continue
+            resp.raise_for_status()
+            rows = resp.json()
+            return rows if isinstance(rows, list) else []
+        except Exception as exc:
+            if idx < len(tokens) - 1:
+                log_issue("collect_jobs", f"apify token #{idx+1} error ({exc}) → next", "warning")
+                continue
+            log_issue("collect_jobs", f"apify actor {actor} failed: {exc}", "warning")
+    return []
+
+
+def _norm_indeed(j: dict) -> dict:
+    title = j.get("positionName") or j.get("title") or ""
+    company = j.get("company") or j.get("companyName") or ""
+    url = j.get("url") or j.get("externalApplyLink") or ""
+    desc = j.get("description") or j.get("descriptionText") or ""
+    return {
+        "source": "indeed",
+        "id": _mk_id("indeed", url, title, company),
+        "title": title,
+        "company": company,
+        "location": j.get("location", "") or "",
+        "remote": _looks_remote(f"{title} {j.get('location','')} {desc}"),
+        "salary": j.get("salary", "") or "",
+        "posted_at": j.get("postingDateParsed") or j.get("postedAt", "") or "",
+        "url": url,
+        "description": _clean_html(desc),
+    }
+
+
+def _norm_google(j: dict) -> dict:
+    title = j.get("title") or j.get("positionName") or ""
+    company = j.get("companyName") or j.get("company") or ""
+    url = j.get("applyLink") or j.get("url") or (j.get("applyOptions") or [{}])[0].get("link", "") if isinstance(j.get("applyOptions"), list) else (j.get("url") or "")
+    desc = j.get("description") or j.get("descriptionText") or ""
+    return {
+        "source": "google",
+        "id": _mk_id("google", url, title, company),
+        "title": title,
+        "company": company,
+        "location": j.get("location", "") or "",
+        "remote": _looks_remote(f"{title} {desc}"),
+        "salary": (j.get("salary") or {}).get("text", "") if isinstance(j.get("salary"), dict) else (j.get("salary") or ""),
+        "posted_at": j.get("postedAt", "") or j.get("metadata", {}).get("postedAt", "") if isinstance(j.get("metadata"), dict) else j.get("postedAt", ""),
+        "url": url,
+        "description": _clean_html(desc),
+    }
+
+
+def collect_apify_all(search: dict, settings: dict) -> list[dict]:
+    """Scrape Indeed (+ Google Jobs if configured) across EVERY user country.
+    Cached for 72h: returns the cached batch untouched between scrapes."""
+    if not _apify_tokens():
         return []
 
-    out = []
-    for j in rows if isinstance(rows, list) else []:
-        title = j.get("title") or j.get("positionName") or ""
-        url = j.get("url") or j.get("jobUrl") or j.get("link") or ""
-        company = j.get("company") or j.get("companyName") or ""
-        desc = j.get("description") or j.get("descriptionText") or ""
-        out.append(
-            {
-                "source": "apify",
-                "id": _mk_id("apify", url, title, company),
-                "title": title,
-                "company": company,
-                "location": j.get("location", location or ""),
-                "remote": _looks_remote(f"{title} {desc}"),
-                "salary": j.get("salary", "") or "",
-                "posted_at": j.get("postedAt", "") or j.get("publishedAt", "") or "",
-                "url": url,
-                "description": _clean_html(desc),
-            }
-        )
+    from cf_store import kv_get, kv_put
+
+    markers = settings.get("credit_markers", {}) or {}
+    min_hours = int(markers.get("apify_min_hours_between_runs", 72))
+    cache = kv_get("apify_cache", None)
+    if isinstance(cache, dict) and cache.get("jobs") is not None:
+        ts = cache.get("ts")
+        try:
+            last = _dt.datetime.fromisoformat(ts)
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=_dt.timezone.utc)
+            if _dt.datetime.now(_dt.timezone.utc) - last < _dt.timedelta(hours=min_hours):
+                return cache["jobs"]  # fresh enough → reuse, no scrape
+        except Exception:
+            pass
+
+    # Time to scrape. Cover every country the user defined.
+    titles = search.get("job_titles") or ["Engineer"]
+    locations = search.get("locations") or []
+    codes = []
+    for loc in locations:
+        c = _country_code(loc)
+        if c and c not in codes:
+            codes.append(c)
+    if not codes:
+        codes = ["GB"]  # nothing mappable → a sane default (still not hardcoded per-user)
+
+    max_runs = int(settings.get("apify_max_runs", 10))
+    indeed_actor = os.getenv("APIFY_INDEED_ACTOR", "misceres~indeed-scraper").strip()
+    google_actor = os.getenv("APIFY_GOOGLE_ACTOR", "").strip()
+    per_run = int(settings.get("apify_items_per_run", 25))
+
+    # Build combos: every country with the top title first, then more titles.
+    combos = []
+    for t in titles:
+        for c in codes:
+            combos.append((t, c))
+    combos = combos[:max_runs]
+
+    out: list[dict] = []
+    seen_ids: set[str] = set()
+    for title, code in combos:
+        if indeed_actor:
+            items = _apify_run(indeed_actor, {
+                "position": title, "country": code, "location": "",
+                "maxItems": per_run, "parseCompanyDetails": False, "saveOnlyUniqueItems": True,
+            })
+            for it in items:
+                job = _norm_indeed(it)
+                if job["id"] not in seen_ids and job.get("url"):
+                    seen_ids.add(job["id"]); out.append(job)
+        if google_actor:
+            items = _apify_run(google_actor, {
+                "queries": [f"{title} {code}"], "maxItems": per_run, "csvFriendlyOutput": False,
+            })
+            for it in items:
+                job = _norm_google(it)
+                if job["id"] not in seen_ids and job.get("url"):
+                    seen_ids.add(job["id"]); out.append(job)
+
+    kv_put("apify_cache", {"ts": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), "jobs": out})
+    log_issue("collect_jobs", f"apify scraped {len(out)} jobs across {len(codes)} countries (cached 72h)", "warning")
     return out
 
 
@@ -293,7 +419,6 @@ _COLLECTORS: dict[str, Callable] = {
     "remoteok": collect_remoteok,
     "adzuna": collect_adzuna,
     "jooble": collect_jooble,
-    "apify": collect_apify,
 }
 
 
@@ -312,10 +437,6 @@ def collect_all(search: dict, settings: dict) -> list[dict]:
     titles = search.get("job_titles") or ["Software Engineer"]
     locations = search.get("locations") or ["Remote"]
     cap = int(settings.get("max_queries_per_source", 6) or 6)
-
-    # Credit-saver gate for Apify (checked here; marker updated in run_all)
-    if "apify" in sources and not _apify_allowed(settings):
-        sources = [s for s in sources if s != "apify"]
 
     # Full combo matrix, then a rotating window of size `cap`.
     combos = [(t, l) for t in titles for l in locations]
@@ -341,6 +462,14 @@ def collect_all(search: dict, settings: dict) -> list[dict]:
             batch.append(job)
 
     for source in sources:
+        # Apify (Indeed + Google) is handled holistically with its own 72h cache.
+        if source == "apify":
+            try:
+                _absorb(collect_apify_all(search, settings))
+            except Exception as exc:
+                log_issue("collect_jobs", f"apify layer crashed: {exc}", "warning")
+            continue
+
         fn = _COLLECTORS.get(source)
         if not fn:
             log_issue("collect_jobs", f"unknown source '{source}'", "warning")
