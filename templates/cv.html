@@ -2,213 +2,151 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>{{ profile.full_name }} — CV</title>
+<title>{{ profile.full_name }} - CV</title>
 <style>
-  /* Premium two-column template (EnhanceCV style). ONE fixed design — only
-     content varies. ATS-safe: real selectable text, no tables/images-of-text,
-     side column rendered AFTER the main column in the text layer (row-reverse)
-     so extraction never interleaves. */
-  :root {
-    --ink: #101318;
-    --gray: #6a7280;
-    --blue: #2b7de9;
-    --hair: #dde2e9;
-  }
+  :root { --ink: #101318; --muted: #5d6673; --accent: #185abc; --hair: #cfd6df; }
   * { box-sizing: border-box; }
-  @page { size: A4; margin: 11mm 12mm; }
+  @page { size: A4; margin: 12mm 13mm; }
   html, body { margin: 0; padding: 0; }
   body {
-    font-family: "Calibri", "Segoe UI", "Liberation Sans", Arial, sans-serif;
-    color: var(--ink); font-size: 10pt; line-height: 1.42;
+    color: var(--ink);
+    font-family: Calibri, "Segoe UI", "Liberation Sans", Arial, sans-serif;
+    font-size: 9.8pt;
+    line-height: 1.34;
   }
-  svg { vertical-align: -1px; }
-
-  /* ---- Header ---- */
-  header { margin-bottom: 12px; }
-  .name { font-size: 24pt; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; margin: 0; line-height: 1.05; }
-  .headline { font-size: 12.5pt; color: var(--blue); font-weight: 650; margin: 4px 0 8px; }
-  .contact { color: var(--gray); font-size: 9pt; }
-  .contact .item { white-space: nowrap; margin-right: 14px; }
-  .contact .item b { color: var(--ink); font-weight: 600; }
-
-  /* ---- Two columns: side column FIRST in DOM (clean extraction), shown on
-         the RIGHT via row-reverse ---- */
-  .cols { display: flex; flex-direction: row-reverse; gap: 7mm; align-items: flex-start; }
-  .main { width: 63%; }
-  .side { width: 37%; }
-
-  /* ---- Section headings: EnhanceCV signature underline bar ---- */
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 9px; }
+  .name { margin: 0; font-size: 21pt; line-height: 1; font-weight: 800; letter-spacing: .2px; text-transform: uppercase; }
+  .headline { margin-top: 3px; color: var(--accent); font-size: 11.2pt; font-weight: 700; }
+  .contact { margin-top: 5px; color: var(--muted); font-size: 8.8pt; }
+  .sep { color: var(--hair); padding: 0 6px; }
   h2 {
-    font-size: 11.5pt; text-transform: uppercase; letter-spacing: 1.2px;
-    font-weight: 800; color: var(--ink);
-    border-bottom: 2.2px solid var(--ink);
-    padding-bottom: 4px; margin: 13px 0 8px;
+    margin: 9px 0 5px;
+    border-bottom: 1.5px solid var(--ink);
+    padding-bottom: 2px;
+    font-size: 10.3pt;
+    font-weight: 800;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    break-after: avoid;
   }
-  section:first-child h2 { margin-top: 0; }
-  section { break-inside: avoid; }
   p { margin: 0; }
-
-  /* ---- Experience ---- */
-  .job { margin-bottom: 11px; break-inside: avoid; }
-  .job-title { font-weight: 750; font-size: 11pt; }
-  .job-company { color: var(--blue); font-weight: 650; font-size: 10.5pt; margin: 1px 0 2px; }
-  .job-meta { color: var(--gray); font-size: 8.8pt; margin-bottom: 3px; }
-  .job-meta .m { margin-right: 12px; white-space: nowrap; }
-  ul.bullets { margin: 3px 0 0; padding-left: 14px; }
-  ul.bullets li { margin-bottom: 2.5px; }
-
-  /* ---- Education ---- */
-  .edu { margin-bottom: 9px; }
-  .edu-degree { font-weight: 750; font-size: 10.5pt; }
-  .edu-school { color: var(--blue); font-weight: 650; margin: 1px 0 2px; }
-
-  /* ---- Side: summary / skills tags / languages dots ---- */
-  .summary { font-size: 9.6pt; line-height: 1.5; }
-  .tags { margin: 0; padding: 0; }
-  .tag {
-    display: inline-block; font-size: 9.3pt; font-weight: 620; color: var(--ink);
-    padding: 2px 7px 3px; margin: 0 4px 6px 0;
-    border-bottom: 1.6px solid var(--hair);
-  }
-  .lang { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
-  .lang-name { font-weight: 700; font-size: 10pt; }
-  .lang-level { color: var(--gray); font-size: 8.8pt; }
-  .dots { display: inline-flex; gap: 3.5px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: #d6dde6; }
-  .dot.on { background: var(--blue); }
-  .cert-row, .award-row { margin-bottom: 5px; font-size: 9.6pt; }
-  .cert-row b { font-weight: 700; }
-  .side-list { margin: 0; padding-left: 13px; font-size: 9.5pt; }
-  .side-list li { margin-bottom: 3px; }
-  .muted { color: var(--gray); }
+  .summary { max-width: 99%; }
+  .skills { font-weight: 650; }
+  .item { margin-bottom: 7px; break-inside: avoid; }
+  .role { font-size: 10.4pt; font-weight: 800; }
+  .org { color: var(--accent); font-weight: 700; }
+  .meta { color: var(--muted); font-size: 8.7pt; margin-top: 1px; }
+  ul { margin: 3px 0 0; padding-left: 14px; }
+  li { margin-bottom: 1.6px; }
+  .edu .role, .compact .role { font-size: 9.8pt; }
+  .compact .item { margin-bottom: 4px; }
 </style>
 </head>
 <body>
   <header>
     <h1 class="name">{{ profile.full_name }}</h1>
-    <div class="headline">{{ profile.headline }}</div>
+    {% if profile.headline %}<div class="headline">{{ profile.headline }}</div>{% endif %}
     <div class="contact">
-      {% if profile.phone %}<span class="item"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#2b7de9" stroke-width="2.4"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.58 2.81.7A2 2 0 0 1 22 16.92z"/></svg> <b>{{ profile.phone }}</b></span>{% endif %}
-      {% if profile.email %}<span class="item"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#2b7de9" stroke-width="2.4"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg> {{ profile.email }}</span>{% endif %}
-      {% if profile.links and profile.links.linkedin %}<span class="item"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#2b7de9" stroke-width="2.4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> {{ profile.links.linkedin }}</span>{% endif %}
-      {% if profile.location %}<span class="item"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#2b7de9" stroke-width="2.4"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> {{ profile.location }}</span>{% endif %}
-      {% if profile.links and profile.links.portfolio %}<span class="item">🌐 {{ profile.links.portfolio }}</span>{% endif %}
-      {% if profile.links and profile.links.github %}<span class="item">{{ profile.links.github }}</span>{% endif %}
+      {% if profile.location %}<span>{{ profile.location }}</span>{% endif %}
+      {% if profile.email %}{% if profile.location %}<span class="sep">|</span>{% endif %}<span>{{ profile.email }}</span>{% endif %}
+      {% if profile.phone %}{% if profile.location or profile.email %}<span class="sep">|</span>{% endif %}<span>{{ profile.phone }}</span>{% endif %}
+      {% if profile.links and profile.links.linkedin %}<span class="sep">|</span><span>{{ profile.links.linkedin }}</span>{% endif %}
+      {% if profile.links and profile.links.portfolio %}<span class="sep">|</span><span>{{ profile.links.portfolio }}</span>{% endif %}
+      {% if profile.links and profile.links.github %}<span class="sep">|</span><span>{{ profile.links.github }}</span>{% endif %}
     </div>
   </header>
 
-  <div class="cols">
-    <!-- SIDE column: first in DOM (clean ATS text order), shown on the right -->
-    <div class="side">
-      {% if cv.summary %}
-      <section>
-        <h2>Summary</h2>
-        <p class="summary">{{ cv.summary }}</p>
-      </section>
-      {% endif %}
+  {% if cv.summary %}
+  <section>
+    <h2>Professional Summary</h2>
+    <p class="summary">{{ cv.summary }}</p>
+  </section>
+  {% endif %}
 
-      {% if cv.skills %}
-      <section>
-        <h2>Skills</h2>
-        <div class="tags">{% for s in cv.skills %}<span class="tag">{{ s }}</span>{% endfor %}</div>
-      </section>
-      {% endif %}
+  {% if cv.skills %}
+  <section>
+    <h2>Core Skills</h2>
+    <p class="skills">{{ cv.skills | join(' | ') }}</p>
+  </section>
+  {% endif %}
 
-      {% if cv.achievements %}
-      <section>
-        <h2>Key Achievements</h2>
-        <ul class="side-list">
-          {% for a in cv.achievements %}<li>{{ a }}</li>{% endfor %}
-        </ul>
-      </section>
-      {% endif %}
-
-      {% if cv.certifications %}
-      <section>
-        <h2>Certifications</h2>
-        {% for c in cv.certifications %}
-        <div class="cert-row"><b>{{ c.name }}</b>{% if c.issuer %} — {{ c.issuer }}{% endif %}{% if c.year %} <span class="muted">({{ c.year }})</span>{% endif %}</div>
-        {% endfor %}
-      </section>
-      {% endif %}
-
-      {% if cv.awards %}
-      <section>
-        <h2>Awards</h2>
-        {% for a in cv.awards %}
-        <div class="award-row"><b>{{ a.name }}</b>{% if a.issuer %} — {{ a.issuer }}{% endif %}{% if a.year %} <span class="muted">({{ a.year }})</span>{% endif %}</div>
-        {% endfor %}
-      </section>
-      {% endif %}
-
-      {% if profile.memberships %}
-      <section>
-        <h2>Memberships</h2>
-        <p class="summary">{{ profile.memberships | join(', ') }}</p>
-      </section>
-      {% endif %}
-
-      {% if languages %}
-      <section>
-        <h2>Languages</h2>
-        {% for l in languages %}
-        <div class="lang">
-          <span><span class="lang-name">{{ l.name }}</span><br /><span class="lang-level">{{ l.level }}</span></span>
-          <span class="dots">{% for i in range(5) %}<span class="dot{% if i < l.dots %} on{% endif %}"></span>{% endfor %}</span>
-        </div>
-        {% endfor %}
-      </section>
+  {% if cv.experience %}
+  <section>
+    <h2>Experience</h2>
+    {% for job in cv.experience %}
+    <div class="item">
+      <div class="role">{{ job.title }}{% if job.company %} - <span class="org">{{ job.company }}</span>{% endif %}</div>
+      <div class="meta">{{ job.start }}{% if job.end %} - {{ job.end }}{% endif %}{% if job.location %} | {{ job.location }}{% endif %}</div>
+      {% if job.bullets %}
+      <ul>{% for b in job.bullets if b %}<li>{{ b }}</li>{% endfor %}</ul>
       {% endif %}
     </div>
+    {% endfor %}
+  </section>
+  {% endif %}
 
-    <!-- MAIN column -->
-    <div class="main">
-      {% if cv.experience %}
-      <section>
-        <h2>Experience</h2>
-        {% for job in cv.experience %}
-        <div class="job">
-          <div class="job-title">{{ job.title }}</div>
-          {% if job.company %}<div class="job-company">{{ job.company }}</div>{% endif %}
-          <div class="job-meta">
-            <span class="m"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#6a7280" stroke-width="2.4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> {{ job.start }}{% if job.end %} – {{ job.end }}{% endif %}</span>
-            {% if job.location %}<span class="m"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#6a7280" stroke-width="2.4"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> {{ job.location }}</span>{% endif %}
-          </div>
-          {% if job.bullets %}
-          <ul class="bullets">
-            {% for b in job.bullets %}<li>{{ b }}</li>{% endfor %}
-          </ul>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </section>
-      {% endif %}
-
-      {% if cv.projects %}
-      <section>
-        <h2>Projects</h2>
-        {% for pr in cv.projects %}
-        <div class="job">
-          <div class="job-title" style="font-size: 10.5pt;">{{ pr.name }}</div>
-          {% if pr.description %}<p>{{ pr.description }}</p>{% endif %}
-        </div>
-        {% endfor %}
-      </section>
-      {% endif %}
-
-      {% if cv.education %}
-      <section>
-        <h2>Education</h2>
-        {% for e in cv.education %}
-        <div class="edu">
-          <div class="edu-degree">{{ e.degree }}</div>
-          {% if e.school %}<div class="edu-school">{{ e.school }}</div>{% endif %}
-          {% if e.year %}<div class="job-meta"><span class="m"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#6a7280" stroke-width="2.4"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> {{ e.year }}</span></div>{% endif %}
-        </div>
-        {% endfor %}
-      </section>
-      {% endif %}
+  {% if cv.projects %}
+  <section>
+    <h2>Projects</h2>
+    {% for pr in cv.projects %}
+    <div class="item">
+      <div class="role">{{ pr.name }}</div>
+      {% if pr.description %}<p>{{ pr.description }}</p>{% endif %}
+      {% if pr.bullets %}<ul>{% for b in pr.bullets if b %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
     </div>
-  </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if cv.education %}
+  <section class="edu">
+    <h2>Education</h2>
+    {% for e in cv.education %}
+    <div class="item">
+      <div class="role">{{ e.degree }}{% if e.school %} - <span class="org">{{ e.school }}</span>{% endif %}</div>
+      {% if e.year %}<div class="meta">{{ e.year }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if cv.achievements %}
+  <section>
+    <h2>Key Achievements</h2>
+    <ul>{% for a in cv.achievements %}<li>{{ a }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if cv.awards %}
+  <section class="compact">
+    <h2>Awards</h2>
+    {% for a in cv.awards %}
+    <div class="item"><span class="role">{{ a.name }}</span>{% if a.issuer %} - {{ a.issuer }}{% endif %}{% if a.year %} <span class="meta">({{ a.year }})</span>{% endif %}</div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if cv.certifications %}
+  <section class="compact">
+    <h2>Certifications</h2>
+    {% for c in cv.certifications %}
+    <div class="item"><span class="role">{{ c.name }}</span>{% if c.issuer %} - {{ c.issuer }}{% endif %}{% if c.year %} <span class="meta">({{ c.year }})</span>{% endif %}</div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if profile.memberships %}
+  <section>
+    <h2>Memberships</h2>
+    <p>{{ profile.memberships | join(', ') }}</p>
+  </section>
+  {% endif %}
+
+  {% if languages %}
+  <section>
+    <h2>Languages</h2>
+    <p>{% for l in languages %}{{ l.name }}: {{ l.level }}{% if not loop.last %} | {% endif %}{% endfor %}</p>
+  </section>
+  {% endif %}
 </body>
 </html>

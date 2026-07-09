@@ -1,5 +1,4 @@
-// POST /api/send-job { job_id } — queue this user's job for full processing
-// (CV + cover + apply steps → Telegram) and trigger a pipeline run.
+// POST /api/send-job { job_id } — queue CV/CL generation + Telegram delivery only.
 import { one, run } from "../_shared/db.js";
 import { json, badRequest } from "../_shared/kv.js";
 
@@ -19,7 +18,7 @@ export async function onRequestPost(context) {
   let dispatched = false;
   if (env.GITHUB_PAT && env.CODE_REPO) {
     try {
-      const r = await fetch(`https://api.github.com/repos/${env.CODE_REPO}/actions/workflows/search.yml/dispatches`, {
+      const r = await fetch(`https://api.github.com/repos/${env.CODE_REPO}/actions/workflows/manual-send.yml/dispatches`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${env.GITHUB_PAT}`, Accept: "application/vnd.github+json",

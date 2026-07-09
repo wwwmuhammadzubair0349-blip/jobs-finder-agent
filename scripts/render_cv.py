@@ -134,7 +134,7 @@ def _plain_text_cv(cv_data: dict, profile: dict) -> str:
             head = f"{j.get('title','')} — {j.get('company','')}"
             meta = f"{j.get('start','')} - {j.get('end','')}".strip(" -")
             lines.append(f"{head}  ({meta})" if meta else head)
-            for b in j.get("bullets", []):
+            for b in [x for x in j.get("bullets", []) if x]:
                 lines.append(f"- {b}")
             lines.append("")
 

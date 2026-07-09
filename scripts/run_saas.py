@@ -160,6 +160,61 @@ def main() -> None:
     _finish("ok")
 
 
+def main_manual_only() -> None:
+    from saas_store import active_users, user_config, queued_user_jobs, mark_sent, store_cv_files
+
+    log(f"Manual send @ {_now()} (D1={'on' if d1_available() else 'off'}, KV={'cloud' if kv_available() else 'local'})")
+    push_status("running")
+
+    total_sent = 0
+    for u in active_users():
+        try:
+            total_sent += _process_manual_user(u, user_config(u["id"]), queued_user_jobs, mark_sent, store_cv_files)
+        except Exception as exc:
+            log_issue("run_saas", f"manual user {u.get('email')}: {exc}", "warning")
+            log(f"  ✘ manual user {u.get('email')} failed: {exc}")
+
+    log(f"manual send done — {total_sent} jobs delivered")
+    set_activity(None, "idle")
+    _finish("ok")
+
+
+def _process_manual_user(u, cfg, queued_fn, mark_sent, store_cv):
+    from agent_cv import tailor
+    from render_cv import render
+    from send_telegram import send_job
+    from saas_store import user_agents_update
+
+    profile = cfg.get("profile", {}) or {}
+    chat_id = u.get("telegram_chat_id")
+    sent = 0
+
+    for job in queued_fn(u["id"]):
+        try:
+            job = {**job, "id": job["job_id"], "uj_id": job["uj_id"]}
+            title = job.get("title", "")
+            set_activity("cv_writer", "writing CV & cover letter", title)
+            cv_data = tailor(job, profile)
+            _agent("cv_writer"); _agent("cl_writer")
+            set_activity("render_cv", "rendering PDFs", title)
+            result = render(job, profile, cv_data, _OUTPUT)
+            _agent("render_cv")
+            keys = store_cv(job["uj_id"], result.get("basename", "CV"),
+                            result["cv_pdf"], result["cover_pdf"], result["cv_txt"])
+            set_activity("send_telegram", "sending to Telegram", title)
+            if chat_id:
+                send_job(job, result, cv_data, chat_id=chat_id)
+            _agent("send_telegram")
+            mark_sent(job["uj_id"], keys.get("cv", ""), keys.get("cover", ""), keys.get("txt", ""))
+            sent += 1
+        except Exception as exc:
+            log_issue("run_saas", f"manual process {job.get('title')}: {exc}", "warning")
+
+    if sent:
+        user_agents_update(u["id"], ["cv_writer", "cl_writer", "render_cv", "send_telegram"])
+    return sent
+
+
 def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_sent, store_cv):
     from agent_cv import tailor
     from render_cv import render
@@ -224,7 +279,10 @@ def _finish(status: str) -> None:
 
 if __name__ == "__main__":
     try:
-        main()
+        if "--manual-only" in sys.argv:
+            main_manual_only()
+        else:
+            main()
     except SystemExit:
         raise
     except Exception as exc:
