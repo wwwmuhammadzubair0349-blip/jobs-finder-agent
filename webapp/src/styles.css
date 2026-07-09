@@ -447,6 +447,8 @@ select.status {
 .auth-head { margin-bottom: 16px; }
 .auth-title { font-family: var(--display); font-size: 21px; font-weight: 700; letter-spacing: -0.4px; }
 .auth-sub { color: var(--muted); font-size: 13.5px; margin-top: 3px; }
+.remember-row { font-size: 13.5px; color: var(--ink-2); margin: 2px 0 12px; cursor: pointer; user-select: none; }
+.remember-row input { accent-color: var(--accent); }
 .ok-msg { color: var(--ok); font-size: 13px; margin-top: 10px; }
 .err-msg { color: var(--err); font-size: 13px; margin-top: 10px; min-height: 18px; }
 .fineprint { color: var(--muted); font-size: 12px; text-align: center; margin: 12px 0 0; }

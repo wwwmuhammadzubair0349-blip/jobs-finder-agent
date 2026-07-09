@@ -60,13 +60,18 @@ async function hmac(secret, data) {
   return bytesToB64(new Uint8Array(sig)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export async function createSessionCookie(session, secret) {
+export async function createSessionCookie(session, secret, opts = {}) {
   // session: { uid, email, admin, imp } — imp = impersonated user id (admin only)
-  const payload = JSON.stringify({ ...session, exp: Date.now() + COOKIE_MAX_AGE * 1000 });
+  // opts.remember (default true): persistent 30-day cookie; false → browser-session
+  // cookie that dies on close (payload still hard-expires after 24h).
+  const remember = opts.remember !== false;
+  const ttlMs = remember ? COOKIE_MAX_AGE * 1000 : 24 * 3600 * 1000;
+  const payload = JSON.stringify({ ...session, exp: Date.now() + ttlMs });
   const body = b64url(payload);
   const sig = await hmac(secret, body);
   const value = `${body}.${sig}`;
-  return `${COOKIE_NAME}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${COOKIE_MAX_AGE}`;
+  const maxAge = remember ? `; Max-Age=${COOKIE_MAX_AGE}` : "";
+  return `${COOKIE_NAME}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/${maxAge}`;
 }
 
 export function clearCookie() {

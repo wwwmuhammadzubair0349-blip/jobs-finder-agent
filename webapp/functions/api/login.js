@@ -30,7 +30,8 @@ export async function onRequestPost(context) {
   await env.KV.delete(failKey);
   const cookie = await createSessionCookie(
     { uid: user.id, email: user.email, admin: user.is_admin === 1 },
-    env.AUTH_SECRET || ""
+    env.AUTH_SECRET || "",
+    { remember: body.remember !== false }
   );
   return json({ ok: true, email: user.email, admin: user.is_admin === 1 }, { headers: { "Set-Cookie": cookie } });
 }

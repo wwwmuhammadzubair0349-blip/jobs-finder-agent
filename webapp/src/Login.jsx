@@ -15,6 +15,7 @@ export default function Login({ onLogin }) {
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(true);
 
   async function submit(e) {
     e.preventDefault();
@@ -26,7 +27,7 @@ export default function Login({ onLogin }) {
         setMode("login");
         setNote("Account created 🎉 — log in to get started.");
       } else {
-        const r = await api.login(email, password);
+        const r = await api.login(email, password, remember);
         onLogin(r);
       }
     } catch (e) {
@@ -87,6 +88,13 @@ export default function Login({ onLogin }) {
             <label>Password</label>
             <input type="password" value={password} onChange={(e) => setP(e.target.value)} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder="At least 6 characters" />
           </div>
+
+          {mode === "login" && (
+            <label className="checkbox remember-row">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              Remember me for 30 days
+            </label>
+          )}
 
           <button className="btn primary big" disabled={busy}>{busy ? "Please wait…" : mode === "signup" ? "Create my free account" : "Log in"}</button>
           {note && <div className="ok-msg">{note}</div>}
