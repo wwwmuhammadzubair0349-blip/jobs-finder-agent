@@ -108,7 +108,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   return (
     <div className="app">
       <div className="topbar">
-        <span className="brand">Jobs Finder<span className="dot">.</span></span>
+        <span className="brand"><span className="brand-badge">JF</span>Jobs Finder<span className="dot">.</span></span>
         <RunState latest={data?.latest_run} />
         <span className="spacer" />
         <button className="icon-btn" title="Run now" onClick={runNow} disabled={running}><IconRun /></button>
@@ -301,7 +301,7 @@ function Today({ me, data, onApp, onSend, reloadMe }) {
       <p className="section-title">{titleMap[filter]} · {shown.length}</p>
       {shown.length === 0
         ? <Empty icon="🛰" title={`No ${titleMap[filter].toLowerCase()} yet`} sub={filter === "today" ? "New matches from the next search will appear here." : "Tap another stat above."} />
-        : shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />)}
+        : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />)}</div>}
     </div>
   );
 }
@@ -445,11 +445,13 @@ function AllJobs({ data, onApp, onSend }) {
         </div>
       )}
       {filtered.length === 0 ? <Empty title="No matching jobs" /> :
-        filtered.map((j) => (
-          <div key={j.id || j.url} onClick={(e) => { if (!["A", "SELECT", "OPTION", "BUTTON"].includes(e.target.tagName)) setDetail(j); }}>
-            <JobCard job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />
-          </div>
-        ))}
+        <div className="job-list">
+          {filtered.map((j) => (
+            <div key={j.id || j.url} onClick={(e) => { if (!["A", "SELECT", "OPTION", "BUTTON"].includes(e.target.tagName)) setDetail(j); }}>
+              <JobCard job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />
+            </div>
+          ))}
+        </div>}
       {detail && <JobModal job={detail} onClose={() => setDetail(null)} />}
     </div>
   );
