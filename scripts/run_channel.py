@@ -174,20 +174,24 @@ def wa_footer() -> str:
 
 
 def wa_jobs(jobs: list[dict]) -> str:
-    lines = ["🔥 *JOBS HIRING RIGHT NOW*", WRULE, ""]
+    """Size-aware: only add jobs while the FULL message (header + jobs + footer)
+    stays under CallMeBot's safe limit — never a half-cut digest."""
+    header = "🔥 *JOBS HIRING RIGHT NOW*\n" + WRULE + "\n"
+    footer = wa_footer()
+    budget = 1800 - len(header) - len(footer)
+
+    blocks, used = [], 0
     for j in jobs:
-        t = (j.get("title") or "")[:60]
-        co = (j.get("company") or "")[:38]
-        loc = (j.get("location") or "")[:28]
+        t = (j.get("title") or "")[:55]
+        co = (j.get("company") or "")[:32]
+        loc = (j.get("location") or "")[:24]
         sal = f" · 💰 {j['salary']}" if j.get("salary") else ""
         meta = " · ".join(x for x in [co, loc] if x) + sal
-        lines.append(f"▸ *{t}*")
-        if meta:
-            lines.append(f"   {meta}")
-        lines.append(f"   {job_link(j)}")
-        lines.append("")
-    lines.append(wa_footer())
-    return "\n".join(lines)
+        block = f"\n▸ *{t}*\n   {meta}\n   {job_link(j)}\n"
+        if used + len(block) > budget:
+            break
+        blocks.append(block); used += len(block)
+    return header + "".join(blocks) + "\n" + footer
 
 
 def wa_tip(label: str, tip: str) -> str:
@@ -195,14 +199,17 @@ def wa_tip(label: str, tip: str) -> str:
 
 
 def wa_spotlight(jobs: list[dict]) -> str:
-    lines = ["🌟 *ROLES WORTH A LOOK*", WRULE, ""]
+    header = "🌟 *ROLES WORTH A LOOK*\n" + WRULE + "\n"
+    footer = wa_footer()
+    budget = 1800 - len(header) - len(footer)
+    blocks, used = [], 0
     for j in jobs:
-        t = (j.get("title") or "")[:60]; co = (j.get("company") or "")[:38]
-        lines.append(f"• *{t}* — {co}")
-        lines.append(f"   {job_link(j)}")
-        lines.append("")
-    lines.append(wa_footer())
-    return "\n".join(lines)
+        t = (j.get("title") or "")[:55]; co = (j.get("company") or "")[:32]
+        block = f"\n• *{t}* — {co}\n   {job_link(j)}\n"
+        if used + len(block) > budget:
+            break
+        blocks.append(block); used += len(block)
+    return header + "".join(blocks) + "\n" + footer
 
 
 def send_whatsapp(text: str) -> bool:
@@ -244,9 +251,10 @@ def main() -> None:
     send_telegram(tg_text + _tg_footer())
 
     # WhatsApp: clean forward-ready digest first, then the instruction as its
-    # OWN message so the digest can be forwarded without any meta text in it.
+    # OWN message. CallMeBot merges messages queued close together, so wait
+    # long enough for the first to actually deliver before sending the second.
     if send_whatsapp(wa_text):
-        time.sleep(6)
+        time.sleep(45)
         send_whatsapp("👆 *Forward the message above to your WhatsApp Channel* 📢\n_Takes two taps — that's today's post done._")
 
     print(f"channel: posted '{kind}'")
