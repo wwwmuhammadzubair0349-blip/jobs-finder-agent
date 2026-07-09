@@ -38,6 +38,13 @@ from log_issue import log_issue
 _TIMEOUT = 25
 _UA = "Mozilla/5.0 (compatible; JobsFinderAgent/1.0)"
 
+# Currency symbol per Adzuna country (Adzuna returns bare numbers).
+_ADZUNA_CURRENCY = {
+    "gb": "£", "us": "$", "au": "A$", "ca": "C$", "de": "€", "fr": "€", "it": "€",
+    "nl": "€", "at": "€", "es": "€", "pl": "zł", "in": "₹", "nz": "NZ$", "sg": "S$",
+    "za": "R", "br": "R$", "mx": "MX$",
+}
+
 # Country names we treat as region scope (not a city `where` filter) for Adzuna.
 _COUNTRY_NAMES = {
     "united arab emirates", "uae", "saudi arabia", "qatar", "oman", "kuwait",
@@ -181,12 +188,14 @@ def collect_adzuna(query, location, search, settings) -> list[dict]:
         log_issue("collect_jobs", f"adzuna '{query}': {exc}", "warning")
         return []
 
+    sym = _ADZUNA_CURRENCY.get(country, "")
     out = []
     for j in results:
         desc = j.get("description", "")
         salary = ""
         if j.get("salary_min"):
-            salary = f"{int(j['salary_min'])}-{int(j.get('salary_max', j['salary_min']))}"
+            lo = int(j["salary_min"]); hi = int(j.get("salary_max", lo))
+            salary = f"{sym}{lo:,} - {sym}{hi:,}" if lo != hi else f"{sym}{lo:,}"
         out.append(
             {
                 "source": "adzuna",

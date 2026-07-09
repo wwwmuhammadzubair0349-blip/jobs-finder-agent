@@ -135,3 +135,18 @@ def scrape_due(key: str, min_hours: int) -> bool:
 
 def mark_scraped(key: str) -> None:
     execute("INSERT INTO pool_scrape (key, scraped_at) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET scraped_at=excluded.scraped_at", [key, _now()])
+
+
+# --------------------------------------------------------------------------- #
+# Per-user agent status (each user sees THEIR own agents' activity)           #
+# --------------------------------------------------------------------------- #
+def user_agents_update(user_id: str, names: list[str]) -> None:
+    from cf_store import kv_get, kv_put
+    key = f"agents_status:{user_id}"
+    cur = kv_get(key, []) or []
+    by = {s.get("name"): s for s in cur if isinstance(s, dict)}
+    now = _now()
+    for n in names:
+        by[n] = {"name": n, "state": "green", "last_run": now}
+    kv_put(key, list(by.values()))
+

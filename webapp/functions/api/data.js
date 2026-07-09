@@ -34,7 +34,7 @@ export async function onRequestGet(context) {
   const settings = cfg?.settings ? JSON.parse(cfg.settings) : DEFAULT_SETTINGS;
 
   const [status, latestRun] = await Promise.all([
-    kvJSON(env, "agents_status", []),
+    kvJSON(env, `agents_status:${uid}`, []),   // per-user agent activity
     kvJSON(env, "latest_run", null),
   ]);
 

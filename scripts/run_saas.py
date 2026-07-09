@@ -171,12 +171,16 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
     chat_id = u.get("telegram_chat_id")
     email = u.get("email", "")
 
+    from saas_store import user_agents_update
+
     ranked, _ = rank(batch, profile, search, seen_ids=[])
     existing = existing_ids_fn(u["id"])
     new = [j for j in ranked if j["id"] not in existing][:MAX_NEW_PER_USER]
     for j in new:
         add_fn(u["id"], j)
     log(f"  {email}: {len(ranked)} matches, {len(new)} new")
+    # these agents run for this user every tick
+    user_agents_update(u["id"], ["collect_jobs", "agent_analyst", "rank_jobs"])
 
     quiet = _in_quiet(settings)
     to_process = []
@@ -208,6 +212,8 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
             sent += 1
         except Exception as exc:
             log_issue("run_saas", f"process {job.get('title')}: {exc}", "warning")
+    if sent:
+        user_agents_update(u["id"], ["cv_writer", "cl_writer", "render_cv", "send_telegram"])
     return sent
 
 

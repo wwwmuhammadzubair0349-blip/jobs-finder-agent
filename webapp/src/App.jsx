@@ -315,9 +315,10 @@ function AgentGrid({ status, current, running }) {
       <div className="agent-grid">
         {AGENTS.map((a) => {
           const s = byName[a.key];
-          const active = current && current.agent === a.key;
-          const recent = s?.last_run && withinHours(s.last_run, 1);
-          const state = active ? "green" : s?.state === "red" ? "red" : (recent ? "green" : (s?.state || "gray"));
+          const ms = s?.last_run ? (Date.now() - new Date(s.last_run).getTime()) : Infinity;
+          const active = ms < 45000;          // this user's agent worked in the last 45s
+          const recent = ms < 3600000;        // within the last hour
+          const state = active || recent ? "green" : s?.state === "red" ? "red" : (s?.state || "gray");
           const dot = state === "green" ? "var(--ok)" : state === "red" ? "var(--err)" : state === "yellow" ? "var(--warn)" : "var(--hair-strong)";
           return (
             <div key={a.key} className={`agent-cell${active ? " active" : ""}`} title={a.name}>
