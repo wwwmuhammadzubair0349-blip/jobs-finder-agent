@@ -74,9 +74,29 @@ def _pretty_dates(cv_data: dict) -> dict:
     return out
 
 
+_LANG_LEVELS = {
+    "native": 5, "fluent": 5, "bilingual": 5, "professional": 4, "advanced": 4,
+    "proficient": 4, "intermediate": 3, "conversational": 3, "basic": 2,
+    "elementary": 2, "beginner": 1,
+}
+
+
+def _parse_langs(langs: list) -> list[dict]:
+    """'English (Professional)' → {name, level, dots} for the proficiency dots."""
+    out = []
+    for l in langs or []:
+        m = re.match(r"^(.*?)\s*\((.*?)\)\s*$", str(l))
+        name, lvl = (m.group(1), m.group(2)) if m else (str(l), "")
+        dots = _LANG_LEVELS.get(lvl.lower().strip(), 4 if lvl else 4)
+        out.append({"name": name.strip(), "level": lvl or "Proficient", "dots": dots})
+    return out
+
+
 def _render_html(cv_data: dict, profile: dict, job: dict) -> tuple[str, str]:
     cv_data = _pretty_dates(cv_data)
-    cv_html = _env.get_template("cv.html").render(cv=cv_data, profile=profile, job=job)
+    cv_html = _env.get_template("cv.html").render(
+        cv=cv_data, profile=profile, job=job,
+        languages=_parse_langs(profile.get("languages")))
     cover_html = _env.get_template("cover_letter.html").render(
         cover=cv_data.get("cover_letter", {}),
         profile=profile,

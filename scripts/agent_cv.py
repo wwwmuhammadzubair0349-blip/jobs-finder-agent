@@ -36,8 +36,12 @@ WRITE LIKE A REAL HUMAN (critical):
 - BANNED words/phrases: leverage, spearheaded, passionate, dynamic,
   results-driven, synergy, utilize, go-getter, team player, detail-oriented,
   "proven track record", "fast-paced environment". No clichés.
-- Bullets: strong verb first, concrete action, real outcome. Use ONLY numbers
-  that already exist in the candidate's material — never invent metrics.
+- Bullets: strong verb first, concrete action, real outcome, max 2 lines each.
+- Quantify ONLY with numbers that literally appear in the candidate's material.
+  Surface every real one (counts, team sizes, frequencies, durations). If the
+  material has NO number for a bullet, you MUST write it without a number —
+  an honest bullet with no metric is required over an invented one. Any number
+  not present in the material is a firing offence.
 - Summary: 2–4 tight lines. Who they are, their strongest relevant proof, and
   what they bring to THIS role. Mirror the job's own vocabulary honestly.
 - Skills: 8–14 items, most job-relevant first, using the JD's exact phrasing
@@ -130,6 +134,37 @@ def _fallback(job: dict, profile: dict) -> dict:
     }
 
 
+# ---- number guard: no metric may appear unless it exists in the profile ----- #
+def _profile_numbers(profile: dict) -> set:
+    return set(_re.findall(r"\d+(?:\.\d+)?", json.dumps(profile)))
+
+
+def _guard_numbers(exp: list, profile: dict) -> list:
+    """Revert any rewritten bullet containing a number that is NOT literally in
+    the profile — fabricated metrics can never reach a CV."""
+    allowed = _profile_numbers(profile)
+    orig = profile.get("experience", []) or []
+    for i, e in enumerate(exp):
+        orig_b = (orig[i].get("bullets") if i < len(orig) else []) or []
+        fixed = []
+        for k, b in enumerate(e.get("bullets") or []):
+            bad = [n for n in _re.findall(r"\d+(?:\.\d+)?", str(b)) if n not in allowed]
+            if bad:
+                if k < len(orig_b):
+                    fixed.append(orig_b[k])   # fall back to the true original
+            else:
+                fixed.append(b)
+        e["bullets"] = fixed or orig_b
+    return exp
+
+
+def _guard_summary(summary: str, profile: dict) -> str:
+    allowed = _profile_numbers(profile)
+    if any(n not in allowed for n in _re.findall(r"\d+(?:\.\d+)?", summary or "")):
+        return profile.get("professional_summary", "") or summary
+    return summary
+
+
 # ---- honesty filter: keep only skills grounded in the profile --------------- #
 def _grounded_skills(candidate: list, profile: dict) -> list:
     own = [s.lower() for s in (profile.get("skills", []) or []) + (profile.get("tools", []) or [])]
@@ -208,7 +243,7 @@ def tailor(job: dict, profile: dict) -> dict:
         out = dict(base)
 
         if data.get("summary"):
-            out["summary"] = data["summary"]
+            out["summary"] = _guard_summary(str(data["summary"]), profile)
         out["skills"] = _grounded_skills(data.get("skills"), profile)
 
         # Merge rewritten bullets back into the FIXED role entries.
@@ -218,7 +253,7 @@ def tailor(job: dict, profile: dict) -> dict:
             for i, e in enumerate(exp):
                 if i < len(rb) and isinstance(rb[i], list) and rb[i]:
                     e["bullets"] = [str(b) for b in rb[i]][:5]
-        out["experience"] = exp
+        out["experience"] = _guard_numbers(exp, profile)
 
         cl = data.get("cover_letter")
         if isinstance(cl, dict) and cl.get("paragraphs"):
