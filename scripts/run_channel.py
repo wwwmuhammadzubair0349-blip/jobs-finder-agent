@@ -139,6 +139,12 @@ def content_role_spotlight() -> str:
     return "\n".join(lines) + _react_line()
 
 
+def _footer() -> str:
+    return (f"\n{RULE}\n"
+            f"🔗 <b>Sign up free</b> — find every job matching your profile, with a tailored CV & cover letter auto-written for each:\n"
+            f"{JOIN_URL}")
+
+
 def main() -> None:
     kind = _rotation_key()
     if kind == "jobs":
@@ -147,7 +153,7 @@ def main() -> None:
         text = content_role_spotlight()
     else:
         text = content_tip(kind)
-    send(text)
+    send(text + _footer())
     print(f"channel: posted '{kind}'")
 
 
