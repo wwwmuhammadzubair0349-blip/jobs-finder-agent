@@ -37,7 +37,8 @@
 
   <div class="meta">
     {{ today }}<br />
-    <span class="role">Re: {{ job.title }}{% if job.company %} at {{ job.company }}{% endif %}</span>
+    Hiring Team{% if job.company %}<br />{{ job.company }}{% endif %}{% if job.location %} · {{ job.location }}{% endif %}<br />
+    <span class="role">Re: Application for {{ job.title }}</span>
   </div>
 
   <p class="greeting">{{ cover.greeting }}</p>

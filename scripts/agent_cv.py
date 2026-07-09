@@ -1,92 +1,106 @@
 """
-agent_cv — produce a tailored CV + cover letter per job (strict JSON).
+agent_cv — world-class, universal-ATS tailoring. Per job, the LLM rewrites
+ONLY three things:
+  1. the professional summary ("about me"),
+  2. the skills list (reordered + keyworded to THIS job),
+  3. each role's experience bullets (job descriptions).
+Everything else — names, titles, companies, dates, education, certifications,
+achievements, projects, awards, languages — is copied verbatim from the
+profile, so facts can never drift.
 
-The AI reorders/re-weights the profile to THIS job, rewrites the summary,
-injects the job's real keywords (ATS-friendly), and writes a 3-paragraph cover
-letter. HARD RULE: use ONLY facts present in config.profile — never invent
-experience, employers, dates, degrees, or skills the user doesn't have. Missing
-skills are handled with honest transferable-experience phrasing.
-
-    tailor(job, profile) -> {
-        "summary": str,
-        "skills": [str],            # reordered, job-weighted, from profile only
-        "experience": [{title, company, location, start, end, bullets[]}],
-        "education": [...], "certifications": [...],
-        "cover_letter": {"greeting": str, "paragraphs": [str, str, str], "signoff": str},
-        "keywords": [str],          # ATS keywords surfaced from the JD
-    }
-
-If the LLM is not configured, `tailor` falls back to a deterministic
-profile-passthrough so the pipeline still renders a (generic) CV locally.
+    tailor(job, profile) -> full cv_data dict for render_cv
 """
 
 from __future__ import annotations
 
 import json
+import re as _re
 
 from llm import is_configured
 from llm_json import llm_json
 from log_issue import log_issue
 
-_SYSTEM = """You are a seasoned CV writer who makes each application sound like
-the CANDIDATE wrote it themselves — a real, competent human, not a machine.
-You tailor the candidate's EXISTING profile to a specific job and you are
-ATS-aware: you weave the job description's real keywords naturally into the
-summary, skills, and experience so applicant-tracking systems rank it highly.
+_SYSTEM = """You are one of the world's best CV writers — the kind senior
+executives quietly pay thousands for. You tailor a candidate's EXISTING
+material to one specific job, and you are an ATS expert: you know applicant
+tracking systems (Workday, Taleo, Greenhouse, SuccessFactors, iCIMS) rank on
+exact keyword overlap with the job description, so you weave the JD's real
+terms naturally into the summary, skills and bullets.
 
-WRITE LIKE A HUMAN (very important):
-- Natural, plain, confident language. Vary sentence length. Sound like a real
-  professional talking about their own work — not a template.
-- BAN these AI/CV clichés and buzzwords: "leverage", "spearheaded", "passionate",
-  "dynamic", "results-driven", "synergy", "go-getter", "team player",
-  "detail-oriented" (unless truly earned), "utilize" (say "use"), "in today's
-  fast-paced world", "proven track record". Don't overuse em-dashes.
-- Prefer concrete specifics and real numbers the profile gives you over generic
-  adjectives. Show, don't boast.
-- The cover letter must read like a thoughtful person wrote it in one sitting:
-  warm but professional, specific to THIS company/role, no robotic symmetry, no
-  filler. Exactly 3 short paragraphs.
+YOU MAY REWRITE ONLY: the summary, the skills list, and the bullets under each
+role. Job titles, companies, dates, education and all other facts are FIXED and
+are not part of your output.
 
-ABSOLUTE HONESTY RULES:
-- Use ONLY facts present in the candidate profile JSON. Never invent employers,
-  job titles, dates, degrees, certifications, metrics, projects, or skills.
-- You MAY rephrase, reorder, re-weight, and emphasise existing content, and you
-  MAY reword the summary — but every underlying fact must stay true.
-- If the job needs a skill the candidate lacks, do NOT claim it. Lean on
-  genuinely-related experience they DO have (honest transferable framing)."""
+WRITE LIKE A REAL HUMAN (critical):
+- Plain, confident, specific. Vary sentence rhythm. No robotic symmetry.
+- BANNED words/phrases: leverage, spearheaded, passionate, dynamic,
+  results-driven, synergy, utilize, go-getter, team player, detail-oriented,
+  "proven track record", "fast-paced environment". No clichés.
+- Bullets: strong verb first, concrete action, real outcome. Use ONLY numbers
+  that already exist in the candidate's material — never invent metrics.
+- Summary: 2–4 tight lines. Who they are, their strongest relevant proof, and
+  what they bring to THIS role. Mirror the job's own vocabulary honestly.
+- Skills: 8–14 items, most job-relevant first, using the JD's exact phrasing
+  where the candidate genuinely has that skill. Include only skills grounded in
+  the candidate's own skills/tools/experience — never add what they lack.
 
-_USER_TMPL = """CANDIDATE PROFILE (the ONLY source of truth):
-{profile}
+HONESTY IS ABSOLUTE: rephrase and re-emphasise, never fabricate."""
 
-TARGET JOB:
+_USER_TMPL = """TARGET JOB
 title: {title}
 company: {company}
 location: {location}
 description:
 {description}
 
+CANDIDATE MATERIAL (the only source of truth)
+about: {summary}
+skills: {skills}
+tools: {tools}
+achievements (context only, do not output): {achievements}
+
+ROLES — rewrite ONLY the bullets for each (titles/companies/dates are fixed):
+{roles}
+
 Return a JSON object with EXACTLY these keys:
 {{
-  "summary": "2-4 line professional summary rewritten for THIS role",
-  "skills": ["reordered/prioritised skills, only from the profile's skills+tools"],
-  "experience": [
-    {{"title","company","location","start","end","bullets":["rewritten, keyworded, truthful, human-sounding"]}}
+  "summary": "2-4 line professional summary tailored to THIS job",
+  "skills": ["8-14 skills, most relevant first, JD keywords the candidate truly has"],
+  "experience_bullets": [
+    ["3-5 rewritten bullets for role 1"],
+    ["3-5 rewritten bullets for role 2 (and so on, one array per role, same order)"]
   ],
-  "achievements": ["reordered/emphasised key achievements from the profile, most relevant first (only if profile has them)"],
-  "projects": [{{"name","description":"tightened, relevant description"}}],
-  "awards": [{{"name","issuer","year"}}],
-  "education": [{{"degree","school","year"}}],
-  "certifications": [{{"name","issuer","year"}}],
   "cover_letter": {{
-    "greeting": "e.g. Dear Hiring Team at <company>,",
-    "paragraphs": ["para1","para2","para3"],
-    "signoff": "e.g. Kind regards,\\n<full name>"
+    "greeting": "Dear Hiring Team at {company},",
+    "paragraphs": ["para1 — why this company/role, one specific hook",
+                   "para2 — strongest relevant proof from the candidate's real experience",
+                   "para3 — confident close with a clear next step"],
+    "signoff": "Kind regards,\\n{full_name}"
   }},
-  "keywords": ["8-15 ATS keywords pulled from the job description"],
-  "apply_steps": ["4-6 short, concrete step-by-step actions to apply for THIS job (open link, attach the CV/cover letter, what to emphasise, any specific field/requirement to address)"]
+  "keywords": ["10-15 ATS keywords pulled from the job description"],
+  "apply_steps": ["4-6 short concrete steps to apply well for THIS job"]
 }}
-Keep every experience entry from the profile (same company/title/dates); only
-rewrite the bullets. Output JSON only."""
+Output JSON only."""
+
+
+def _roles_block(profile: dict) -> str:
+    lines = []
+    for i, e in enumerate(profile.get("experience", []) or [], 1):
+        lines.append(f"{i}. {e.get('title','')} — {e.get('company','')} ({e.get('start','')} – {e.get('end','')})")
+        for b in (e.get("bullets") or []):
+            lines.append(f"   • {b}")
+    return "\n".join(lines) or "(no roles listed)"
+
+
+def _static_sections(profile: dict) -> dict:
+    """Everything that is copied verbatim — never rewritten per job."""
+    return {
+        "education": profile.get("education", []),
+        "certifications": profile.get("certifications", []),
+        "achievements": profile.get("achievements", []),
+        "projects": profile.get("projects", []),
+        "awards": profile.get("awards", []),
+    }
 
 
 def _fallback(job: dict, profile: dict) -> dict:
@@ -95,38 +109,43 @@ def _fallback(job: dict, profile: dict) -> dict:
         "summary": profile.get("professional_summary", ""),
         "skills": (profile.get("skills", []) or []) + (profile.get("tools", []) or []),
         "experience": profile.get("experience", []),
-        "achievements": profile.get("achievements", []),
-        "projects": profile.get("projects", []),
-        "awards": profile.get("awards", []),
-        "education": profile.get("education", []),
-        "certifications": profile.get("certifications", []),
+        **_static_sections(profile),
         "cover_letter": {
             "greeting": f"Dear Hiring Team at {job.get('company','')},",
             "paragraphs": [
                 f"I am writing to apply for the {job.get('title','')} role. "
                 + profile.get("professional_summary", ""),
-                "My background aligns with what you are looking for, and I am confident "
-                "I can contribute quickly.",
-                "I would welcome the chance to discuss how my experience fits your team. "
-                "Thank you for your consideration.",
+                "My background lines up well with what you are looking for, and I can contribute from day one.",
+                "I would welcome the chance to discuss how my experience fits your team. Thank you for your consideration.",
             ],
             "signoff": f"Kind regards,\n{name}",
         },
         "keywords": [],
         "apply_steps": [
             f"Open the apply link for {job.get('title','')} at {job.get('company','')}.",
-            "Download and attach the tailored CV (PDF) and cover letter.",
+            "Attach the tailored CV (PDF) and cover letter.",
             "Paste the plain-text ATS CV if the form has a resume text box.",
-            "In any 'why you' field, emphasise your most relevant experience for this role.",
-            "Submit, then tap ✅ Applied below so it's tracked.",
+            "Submit, then tap ✅ Applied so it's tracked.",
         ],
     }
 
 
-import re as _re
+# ---- honesty filter: keep only skills grounded in the profile --------------- #
+def _grounded_skills(candidate: list, profile: dict) -> list:
+    own = [s.lower() for s in (profile.get("skills", []) or []) + (profile.get("tools", []) or [])]
+    own_text = " ".join(own)
+    out = []
+    for s in candidate or []:
+        sl = str(s).lower().strip()
+        if not sl:
+            continue
+        ok = any(sl == o or sl in o or o in sl for o in own) or all(w in own_text for w in sl.split()[:2])
+        if ok and s not in out:
+            out.append(s)
+    return out or (profile.get("skills", []) or [])[:12]
 
-# Safe, case-preserving swaps for the most robotic AI/CV tells the model
-# sometimes ignores. Only 1:1 word/phrase swaps that never break grammar.
+
+# ---- de-AI-ify pass ---------------------------------------------------------- #
 _HUMANIZE = [
     (r"\butiliz(e|es|ed|ing)\b", {"e": "use", "es": "uses", "ed": "used", "ing": "using"}),
     (r"\butilis(e|es|ed|ing)\b", {"e": "use", "es": "uses", "ed": "used", "ing": "using"}),
@@ -160,48 +179,60 @@ def _humanize_all(cv: dict) -> dict:
     cv["summary"] = _humanize(cv.get("summary", ""))
     for e in cv.get("experience", []) or []:
         e["bullets"] = [_humanize(b) for b in (e.get("bullets") or [])]
-    cv["achievements"] = [_humanize(a) for a in (cv.get("achievements") or [])]
     cl = cv.get("cover_letter") or {}
     cl["paragraphs"] = [_humanize(p) for p in (cl.get("paragraphs") or [])]
     cv["cover_letter"] = cl
     return cv
 
 
-def _sanitise(data: dict, job: dict, profile: dict) -> dict:
-    """Guard against the model dropping keys or hallucinating structure."""
-    base = _fallback(job, profile)
-    if not isinstance(data, dict):
-        return base
-    out = dict(base)
-    for key in ("summary", "skills", "experience", "achievements", "projects", "awards",
-                "education", "certifications", "keywords", "apply_steps"):
-        if data.get(key):
-            out[key] = data[key]
-    cl = data.get("cover_letter")
-    if isinstance(cl, dict) and cl.get("paragraphs"):
-        out["cover_letter"] = {
-            "greeting": cl.get("greeting", base["cover_letter"]["greeting"]),
-            "paragraphs": cl.get("paragraphs", base["cover_letter"]["paragraphs"]),
-            "signoff": cl.get("signoff", base["cover_letter"]["signoff"]),
-        }
-    return out
-
-
 def tailor(job: dict, profile: dict) -> dict:
     if not is_configured():
         log_issue("agent_cv", "LLM not configured — using profile passthrough", "warning")
-        return _fallback(job, profile)
+        return _humanize_all(_fallback(job, profile))
 
     user = _USER_TMPL.format(
-        profile=json.dumps(profile, ensure_ascii=False, indent=2),
         title=job.get("title", ""),
         company=job.get("company", ""),
         location=job.get("location", ""),
-        description=(job.get("description", "") or "")[:4000],
+        description=(job.get("description", "") or "")[:3500],
+        summary=profile.get("professional_summary", ""),
+        skills=", ".join(profile.get("skills", []) or []),
+        tools=", ".join(profile.get("tools", []) or []),
+        achievements="; ".join(profile.get("achievements", []) or [])[:600],
+        roles=_roles_block(profile),
+        full_name=profile.get("full_name", ""),
     )
     try:
-        data = llm_json(_SYSTEM, user, max_tokens=2600, temperature=0.4)
-        return _humanize_all(_sanitise(data, job, profile))
+        data = llm_json(_SYSTEM, user, max_tokens=1900, temperature=0.4)
+        base = _fallback(job, profile)
+        out = dict(base)
+
+        if data.get("summary"):
+            out["summary"] = data["summary"]
+        out["skills"] = _grounded_skills(data.get("skills"), profile)
+
+        # Merge rewritten bullets back into the FIXED role entries.
+        rb = data.get("experience_bullets")
+        exp = [dict(e) for e in (profile.get("experience", []) or [])]
+        if isinstance(rb, list):
+            for i, e in enumerate(exp):
+                if i < len(rb) and isinstance(rb[i], list) and rb[i]:
+                    e["bullets"] = [str(b) for b in rb[i]][:5]
+        out["experience"] = exp
+
+        cl = data.get("cover_letter")
+        if isinstance(cl, dict) and cl.get("paragraphs"):
+            out["cover_letter"] = {
+                "greeting": cl.get("greeting", base["cover_letter"]["greeting"]),
+                "paragraphs": [str(p) for p in cl["paragraphs"]][:3],
+                "signoff": cl.get("signoff", base["cover_letter"]["signoff"]),
+            }
+        if data.get("keywords"):
+            out["keywords"] = data["keywords"]
+        if data.get("apply_steps"):
+            out["apply_steps"] = data["apply_steps"]
+
+        return _humanize_all(out)
     except Exception as exc:
         log_issue("agent_cv", f"tailor failed for {job.get('title')}: {exc}", "error")
         return _humanize_all(_fallback(job, profile))
@@ -211,9 +242,9 @@ if __name__ == "__main__":
     from config import get_profile
 
     demo_job = {
-        "title": "Backend Engineer",
+        "title": "Electrical Engineer",
         "company": "Acme",
-        "location": "Remote",
-        "description": "Python, FastAPI, PostgreSQL, Docker, AWS. Build scalable REST APIs.",
+        "location": "Dubai",
+        "description": "MEP, HVAC, LV systems, AutoCAD, preventive maintenance, testing and commissioning.",
     }
-    print(json.dumps(tailor(demo_job, get_profile()), indent=2)[:1200])
+    print(json.dumps(tailor(demo_job, get_profile()), indent=2)[:1500])

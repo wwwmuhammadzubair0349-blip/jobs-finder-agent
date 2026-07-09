@@ -48,7 +48,34 @@ def file_basename(job: dict, profile: dict) -> str:
     return f"{name}_{jobt}".strip("_")
 
 
+_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _fmt_date(v: str) -> str:
+    """'2022-01' → 'Jan 2022'; 'present'/'' → 'Present'. ATS-standard format."""
+    v = (v or "").strip()
+    if not v or v.lower() in ("present", "current", "now"):
+        return "Present"
+    m = re.match(r"^(\d{4})-(\d{1,2})", v)
+    if m:
+        y, mo = m.group(1), int(m.group(2))
+        if 1 <= mo <= 12:
+            return f"{_MONTHS[mo - 1]} {y}"
+    return v
+
+
+def _pretty_dates(cv_data: dict) -> dict:
+    """Copy with experience dates formatted for humans+ATS (source unchanged)."""
+    out = dict(cv_data)
+    out["experience"] = [
+        {**e, "start": _fmt_date(e.get("start", "")), "end": _fmt_date(e.get("end", ""))}
+        for e in (cv_data.get("experience") or [])
+    ]
+    return out
+
+
 def _render_html(cv_data: dict, profile: dict, job: dict) -> tuple[str, str]:
+    cv_data = _pretty_dates(cv_data)
     cv_html = _env.get_template("cv.html").render(cv=cv_data, profile=profile, job=job)
     cover_html = _env.get_template("cover_letter.html").render(
         cover=cv_data.get("cover_letter", {}),
@@ -79,11 +106,11 @@ def _plain_text_cv(cv_data: dict, profile: dict) -> str:
         lines += ["PROFESSIONAL SUMMARY", cv_data["summary"], ""]
 
     if cv_data.get("skills"):
-        lines += ["CORE SKILLS", ", ".join(cv_data["skills"]), ""]
+        lines += ["SKILLS", ", ".join(cv_data["skills"]), ""]
 
     if cv_data.get("experience"):
-        lines.append("EXPERIENCE")
-        for j in cv_data["experience"]:
+        lines.append("WORK EXPERIENCE")
+        for j in _pretty_dates(cv_data)["experience"]:
             head = f"{j.get('title','')} — {j.get('company','')}"
             meta = f"{j.get('start','')} - {j.get('end','')}".strip(" -")
             lines.append(f"{head}  ({meta})" if meta else head)
