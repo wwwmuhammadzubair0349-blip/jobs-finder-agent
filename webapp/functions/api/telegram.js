@@ -47,13 +47,19 @@ export async function onRequestPost(context) {
       const code = m[0].toUpperCase();
       const user = await one(env, "SELECT id, email FROM users WHERE connection_code = ?", code);
       if (user) {
-        await run(env, "UPDATE users SET telegram_chat_id = ? WHERE id = ?", chatId, user.id);
-        await send(token, chatId, "✅ <b>Connected!</b>\nYour tailored jobs, CVs and cover letters will arrive here. Good luck! 🚀");
+        // One code links ALL bots — chat id is the same across bots for a user.
+        await run(env, "UPDATE users SET telegram_chat_id = ?, interview_chat_id = ? WHERE id = ?", chatId, chatId, user.id);
+        await send(token, chatId, "✅ <b>Connected!</b>\nYour tailored jobs, CVs and cover letters will arrive here.\n\n🧠 Your <b>Interview Prep bot</b> is linked too — just open @interview_prep_coach_bot and press Start. Good luck! 🚀");
       } else {
         await send(token, chatId, "❌ That code didn't match any account. Copy the exact code from your dashboard (looks like <code>JF-XXXXXX</code>).");
       }
     } else {
-      await send(token, chatId, "👋 <b>Welcome to Jobs Finder.</b>\nTo connect, open your dashboard, copy your connection code (like <code>JF-XXXXXX</code>) and send it here.");
+      const already = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
+      if (already) {
+        await send(token, chatId, "✅ You're connected. New matching jobs, with a tailored CV & cover letter, will arrive here automatically.");
+      } else {
+        await send(token, chatId, "👋 <b>Welcome to Jobs Finder.</b>\nTo connect, open your dashboard, copy your connection code (like <code>JF-XXXXXX</code>) and send it here. It links this bot <i>and</i> the Interview Prep bot at once.");
+      }
     }
   }
   return json({ ok: true });

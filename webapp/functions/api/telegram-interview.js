@@ -25,8 +25,9 @@ export async function onRequestPost(context) {
   if (codeMatch) {
     const user = await one(env, "SELECT id FROM users WHERE connection_code = ?", codeMatch[0].toUpperCase());
     if (user) {
-      await run(env, "UPDATE users SET interview_chat_id = ? WHERE id = ?", chatId, user.id);
-      await send(token, chatId, "✅ <b>Connected to Interview Prep Coach.</b>\nSend me anything to see your jobs, then reply with a number to prep for that interview.");
+      // One code links ALL bots — same chat id across bots.
+      await run(env, "UPDATE users SET interview_chat_id = ?, telegram_chat_id = COALESCE(telegram_chat_id, ?) WHERE id = ?", chatId, chatId, user.id);
+      await send(token, chatId, "✅ <b>Connected to Interview Prep Coach.</b>\nSend me anything to see your jobs, then reply with a number to prep for that interview.\n\n✈️ Your <b>Jobs bot</b> is linked too.");
     } else {
       await send(token, chatId, "❌ That code didn't match. Copy your code (like <code>JF-XXXXXX</code>) from the dashboard.");
     }

@@ -347,7 +347,7 @@ function ConnectCard({ me, reloadMe }) {
         <span style={{ fontSize: 20 }}>✅</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 650 }}>Telegram connected</div>
-          <div className="hint">Jobs, CVs & interview prep arrive in your Telegram.{u.interview_connected ? " Interview bot linked too." : ""}</div>
+          <div className="hint">Jobs bot ✓ &nbsp;·&nbsp; Interview-prep bot ✓ — both linked. Open @interview_prep_coach_bot and press Start to use interview prep.</div>
         </div>
       </div>
     );
@@ -357,7 +357,7 @@ function ConnectCard({ me, reloadMe }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 18 }}>🔌</span><span style={{ fontWeight: 650 }}>Telegram not connected</span>
       </div>
-      <div className="hint" style={{ margin: "6px 0 10px" }}>Connect to receive your jobs & CVs. In Telegram, open the bots and send this code:</div>
+      <div className="hint" style={{ margin: "6px 0 10px" }}>Send this code to the Jobs bot — it links the Interview-prep bot (and any future bots) automatically:</div>
       <div className="code-chip">{u.connection_code || "—"}</div>
       <div className="row-actions" style={{ marginTop: 10 }}>
         <a className="btn primary sm" href="https://t.me/jobs_finder_agent_bot" target="_blank" rel="noreferrer">Open Jobs bot</a>
