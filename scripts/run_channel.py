@@ -66,28 +66,39 @@ def pick_diverse_jobs(n: int) -> list[dict]:
 
 
 def main() -> None:
-    join = [[{"text": "🚀 Get YOUR tailored jobs + CV", "url": JOIN_URL}]]
+    rule = "──────────────"
+    ch = CHANNEL.replace("@", "")
+    share = f"https://t.me/share/url?url=https://t.me/{ch}&text=" + _q("Free AI job-finder — matched jobs + auto-written CV & cover letter, straight to Telegram 👇")
+    join = [
+        [{"text": "🚀 Get YOUR tailored jobs + CV", "url": JOIN_URL}],
+        [{"text": "👥 Invite friends", "url": share}],
+    ]
 
     # 1) rotating premium tip
     label, tip = random.choice(TIPS)
-    send(f"{label}\n{tip}\n\n<i>Want a CV auto-tailored to every job you apply for?</i>", join)
+    send(f"{label}\n{rule}\n{tip}\n\n<i>Know someone job hunting? Share this channel 👇</i>", join)
 
     # 2) diverse jobs
     jobs = pick_diverse_jobs(JOBS_PER_DAY)
     if not jobs:
         print("no pool jobs to post"); return
 
-    lines = ["🔥 <b>Fresh jobs today</b>\n"]
+    lines = [f"🔥 <b>Fresh jobs today</b>\n{rule}"]
     for j in jobs:
         t = html.escape(j.get("title", "")[:60])
         co = html.escape(j.get("company", "")[:40])
         loc = html.escape(j.get("location", "")[:30])
         sal = f" · 💰 {html.escape(j['salary'])}" if j.get("salary") else ""
         url = j.get("url", "")
-        lines.append(f"• <a href=\"{html.escape(url, quote=True)}\">{t}</a> — {co} · {loc}{sal}")
-    lines.append(f"\n👉 <b>Get jobs like these tailored to YOU</b>, with an auto-written CV + cover letter for each: {JOIN_URL}")
+        lines.append(f"▸ <a href=\"{html.escape(url, quote=True)}\">{t}</a>\n   <i>{co}</i> · {loc}{sal}")
+    lines.append(f"{rule}\n🎯 <b>Want these tailored to YOU?</b> Get an auto-written CV + cover letter for every match:\n{JOIN_URL}\n\n👥 <b>Tag a friend</b> who's job hunting — help them land it faster.")
     send("\n".join(lines), join)
     print(f"channel: posted 1 tip + {len(jobs)} jobs")
+
+
+def _q(s: str) -> str:
+    from urllib.parse import quote
+    return quote(s)
 
 
 if __name__ == "__main__":

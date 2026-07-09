@@ -14,6 +14,8 @@ export async function onRequestPost(context) {
   let update;
   try { update = await request.json(); } catch { return json({ ok: true }); }
   const token = env.TELEGRAM_TOKEN;
+  const channel = env.TELEGRAM_CHANNEL || "@dailyjobs_feed";
+  const RULE = "──────────────";
 
   // Applied button
   if (update.callback_query) {
@@ -49,16 +51,23 @@ export async function onRequestPost(context) {
       if (user) {
         // One code links ALL bots — chat id is the same across bots for a user.
         await run(env, "UPDATE users SET telegram_chat_id = ?, interview_chat_id = ? WHERE id = ?", chatId, chatId, user.id);
-        await send(token, chatId, "✅ <b>Connected!</b>\nYour tailored jobs, CVs and cover letters will arrive here.\n\n🧠 Your <b>Interview Prep bot</b> is linked too — just open @interview_prep_coach_bot and press Start. Good luck! 🚀");
+        await send(token, chatId,
+          `✅ <b>You're connected!</b>\n${RULE}\n` +
+          `Fresh matching jobs — each with a tailored <b>CV</b> + <b>cover letter</b> + how-to-apply steps — will land right here. 🚀\n\n` +
+          `🧠 Your <b>Interview Prep bot</b> is linked too — open @interview_prep_coach_bot and press Start to prep or run a mock interview.\n\n` +
+          `📢 Follow <a href="https://t.me/${channel.replace('@','')}">${channel}</a> for daily jobs & career tips.`);
       } else {
-        await send(token, chatId, "❌ That code didn't match any account. Copy the exact code from your dashboard (looks like <code>JF-XXXXXX</code>).");
+        await send(token, chatId, `❌ <b>Code not recognised</b>\n${RULE}\nCopy the exact code from your dashboard (looks like <code>JF-XXXXXX</code>) and send it here.`);
       }
     } else {
       const already = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
       if (already) {
-        await send(token, chatId, "✅ You're connected. New matching jobs, with a tailored CV & cover letter, will arrive here automatically.");
+        await send(token, chatId, `✅ <b>You're all set.</b>\nNew matching jobs with a tailored CV & cover letter arrive here automatically.\n\n📢 <a href="https://t.me/${channel.replace('@','')}">${channel}</a> — daily jobs & tips.`);
       } else {
-        await send(token, chatId, "👋 <b>Welcome to Jobs Finder.</b>\nTo connect, open your dashboard, copy your connection code (like <code>JF-XXXXXX</code>) and send it here. It links this bot <i>and</i> the Interview Prep bot at once.");
+        await send(token, chatId,
+          `👋 <b>Welcome to Jobs Finder</b>\n${RULE}\n` +
+          `I deliver jobs matched to you, each with a ready-to-send CV & cover letter.\n\n` +
+          `To connect: open your dashboard, copy your code (like <code>JF-XXXXXX</code>) and send it here. It links this bot <i>and</i> the Interview Prep bot at once.`);
       }
     }
   }

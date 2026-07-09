@@ -191,12 +191,12 @@ const AGENT_LABELS = {
 // background but are hidden here to keep the team focused on what the user sees.
 const AGENTS = [
   { key: "collect_jobs", name: "Scraper", emoji: "🔎" },
+  { key: "agent_analyst", name: "Analyst", emoji: "🧠" },
   { key: "rank_jobs", name: "Ranker", emoji: "📊" },
   { key: "cv_writer", name: "CV Writer", emoji: "✍️" },
   { key: "cl_writer", name: "Cover Letter Writer", emoji: "✉️" },
   { key: "render_cv", name: "Designer", emoji: "📄" },
   { key: "send_telegram", name: "Telegram", emoji: "✈️" },
-  { key: "agent_analyst", name: "Analyst", emoji: "🧠" },
 ];
 
 function AgentTeam({ status, current }) {
