@@ -12,7 +12,6 @@ const TABS = [
   { id: "profile", label: "Profile", icon: IconProfile },
   { id: "search", label: "Search", icon: IconSearch },
   { id: "schedule", label: "Schedule", icon: IconClock },
-  { id: "issues", label: "Agents", icon: IconAlert },
 ];
 
 export default function App() {
@@ -121,7 +120,6 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         {tab === "profile" && (config ? <ProfileEditor key="p" initial={config.profile} onSave={saveConfig} /> : <Loading />)}
         {tab === "search" && (config ? <SearchEditor key="s" initial={config.search} onSave={saveConfig} /> : <Loading />)}
         {tab === "schedule" && (config ? <ScheduleEditor key="c" initial={config.schedule} onSave={saveConfig} /> : <Loading />)}
-        {tab === "issues" && <Agents issues={issues} status={data?.agents_status || []} latest={data?.latest_run} />}
       </div>
 
       <nav className="tabbar">
@@ -151,22 +149,22 @@ function RunState({ latest }) {
 const AGENT_LABELS = {
   collect_jobs: "🔎 Searching job boards",
   rank_jobs: "📊 Scoring matches",
-  verify_links: "🔗 Verifying apply links",
-  agent_cv: "✍️ Writing tailored CV & cover letter",
-  render_cv: "📄 Rendering PDFs",
-  publish_cvs: "☁️ Publishing CV",
-  send_telegram: "✈️ Sending to Telegram",
-  agent_analyst: "🧠 Writing daily brief",
+  cv_writer: "✍️ Writing your tailored CV",
+  cl_writer: "✉️ Writing your cover letter",
+  agent_cv: "✍️ Writing your CV & cover letter",
+  render_cv: "📄 Designing the PDFs",
+  send_telegram: "✈️ Sending to your Telegram",
+  agent_analyst: "🧠 Preparing your brief",
 };
 
-// Friendly names for the Agent-team cards.
+// Agent-team cards (user-facing). Link Checker & Publisher run in the
+// background but are hidden here to keep the team focused on what the user sees.
 const AGENTS = [
   { key: "collect_jobs", name: "Scraper", emoji: "🔎" },
   { key: "rank_jobs", name: "Ranker", emoji: "📊" },
-  { key: "verify_links", name: "Link Checker", emoji: "🔗" },
-  { key: "agent_cv", name: "Writer", emoji: "✍️" },
+  { key: "cv_writer", name: "CV Writer", emoji: "✍️" },
+  { key: "cl_writer", name: "Cover Letter Writer", emoji: "✉️" },
   { key: "render_cv", name: "Designer", emoji: "📄" },
-  { key: "publish_cvs", name: "Publisher", emoji: "☁️" },
   { key: "send_telegram", name: "Telegram", emoji: "✈️" },
   { key: "agent_analyst", name: "Analyst", emoji: "🧠" },
 ];
@@ -288,14 +286,17 @@ function AgentGrid({ status, current, running }) {
         {AGENTS.map((a) => {
           const s = byName[a.key];
           const active = current && current.agent === a.key;
-          const state = active ? "green" : s?.state || "gray";
+          const recent = s?.last_run && withinHours(s.last_run, 1);
+          const state = active ? "green" : s?.state === "red" ? "red" : (recent ? "green" : (s?.state || "gray"));
           const dot = state === "green" ? "var(--ok)" : state === "red" ? "var(--err)" : state === "yellow" ? "var(--warn)" : "var(--hair-strong)";
           return (
             <div key={a.key} className={`agent-cell${active ? " active" : ""}`} title={a.name}>
-              <span className="agent-emoji">{a.emoji}</span>
+              <span className={`agent-avatar${active ? " spin" : ""}`}>{a.emoji}</span>
               <span className="agent-name">{a.name}</span>
-              {active ? <span className="agent-pulse" /> : <span className="status-dot" style={{ background: dot }} />}
-              <span className="agent-when">{active ? "now" : s?.last_run ? timeAgo(s.last_run) : "idle"}</span>
+              <span className="agent-when">
+                <span className="status-dot" style={{ background: dot }} />
+                {active ? <b style={{ color: "var(--accent)" }}>working…</b> : s?.last_run ? timeAgo(s.last_run) : "idle"}
+              </span>
             </div>
           );
         })}

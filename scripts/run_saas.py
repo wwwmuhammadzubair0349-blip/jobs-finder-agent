@@ -150,6 +150,11 @@ def main() -> None:
             log_issue("run_saas", f"user {u.get('email')}: {exc}", "warning")
             log(f"  ✘ user {u.get('email')} failed: {exc}")
 
+    # Heartbeat: mark every visible agent as having run this cycle so the
+    # dashboard shows accurate, recent "last seen" for the whole team.
+    for k in ("collect_jobs", "rank_jobs", "cv_writer", "cl_writer", "render_cv", "send_telegram", "agent_analyst"):
+        _agent(k)
+
     log(f"tick done — {total_sent} jobs delivered across users")
     set_activity(None, "idle")
     _finish("ok")
@@ -186,15 +191,19 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
     sent = 0
     for job in to_process:
         try:
-            set_activity("agent_cv", "writing CV", f"{job.get('title','')}")
+            title = job.get("title", "")
+            set_activity("cv_writer", "writing CV & cover letter", title)
             cv_data = tailor(job, profile)
-            set_activity("render_cv", "rendering", f"{job.get('title','')}")
+            _agent("cv_writer"); _agent("cl_writer")
+            set_activity("render_cv", "rendering PDFs", title)
             result = render(job, profile, cv_data, _OUTPUT)
+            _agent("render_cv")
             keys = store_cv(job["uj_id"], result.get("basename", "CV"),
                             result["cv_pdf"], result["cover_pdf"], result["cv_txt"])
-            set_activity("send_telegram", "sending", f"{job.get('title','')}")
+            set_activity("send_telegram", "sending to Telegram", title)
             if chat_id:
                 send_job(job, result, cv_data, chat_id=chat_id)
+            _agent("send_telegram")
             mark_sent(job["uj_id"], keys.get("cv", ""), keys.get("cover", ""), keys.get("txt", ""))
             sent += 1
         except Exception as exc:
