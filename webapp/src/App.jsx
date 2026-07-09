@@ -44,7 +44,9 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [toast, setToast] = useState("");
   const [running, setRunning] = useState(false);
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("jf_tour_done"));
-  const [nagDismissed, setNagDismissed] = useState(false);
+  // Profile popup shows once per session — the in-page CTAs carry it after that.
+  const [nagDismissed, setNagDismissed] = useState(() => !!sessionStorage.getItem("jf_nag_done"));
+  const dismissNag = () => { sessionStorage.setItem("jf_nag_done", "1"); setNagDismissed(true); };
   const pollRef = useRef(null);
   const lastJson = useRef("");
   const complete = isProfileComplete(config);
@@ -127,9 +129,9 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} reloadMe={reloadMe} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
-        {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} />}
+        {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "apps" && <Applications data={data} />}
         {tab === "profile" && (config ? <ProfileEditor key="p" initial={config.profile} onSave={saveConfig} /> : <Loading />)}
         {tab === "search" && (config ? <SearchEditor key="s" initial={config.search} onSave={saveConfig} /> : <Loading />)}
@@ -153,14 +155,14 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       {showTour && <Tour onDone={finishTour} />}
 
       {!showTour && config && !complete && !nagDismissed && (
-        <div className="modal-back" onClick={() => setNagDismissed(true)}>
+        <div className="modal-back" onClick={dismissNag}>
           <div className="tour-card fade" onClick={(e) => e.stopPropagation()}>
             <div className="tour-emoji">📝</div>
             <h2>Complete your profile</h2>
             <p>Add your name, job titles and skills so the agents can find and tailor jobs for you. It takes 2 minutes and it's what makes the matches great.</p>
             <div className="tour-actions">
-              <button className="btn ghost" onClick={() => setNagDismissed(true)}>Later</button>
-              <button className="btn primary" onClick={() => { setTab("profile"); setNagDismissed(true); }}>Complete profile</button>
+              <button className="btn ghost" onClick={dismissNag}>Later</button>
+              <button className="btn primary" onClick={() => { setTab("profile"); dismissNag(); }}>Complete profile</button>
             </div>
           </div>
         </div>
@@ -263,7 +265,69 @@ function ActivityBar({ latest }) {
 }
 
 /* ---------------- Today ---------------- */
-function Today({ me, data, onApp, onSend, reloadMe }) {
+// Empty-state CTA: profile not complete → the app is never "empty", it always
+// shows the next step instead.
+function ProfileCta({ goProfile }) {
+  return (
+    <div className="card">
+      <div className="empty" style={{ padding: "28px 14px" }}>
+        <div className="big">📝</div>
+        <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 17.5, color: "var(--ink)", textWrap: "balance" }}>
+          Complete your profile to start getting jobs
+        </div>
+        <div style={{ fontSize: 13.5, marginTop: 6, maxWidth: "36ch", marginInline: "auto" }}>
+          Your agents can't search until they know who you are. Add your name, job titles and skills — it takes 2 minutes.
+        </div>
+        <button className="btn primary" style={{ marginTop: 16 }} onClick={goProfile}>Complete profile →</button>
+      </div>
+    </div>
+  );
+}
+
+// Profile done, jobs just haven't arrived yet → show life, not a dead end.
+function HuntingCta({ onRun }) {
+  return (
+    <div className="card">
+      <div className="empty" style={{ padding: "28px 14px" }}>
+        <div className="big">🛰</div>
+        <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 17.5, color: "var(--ink)" }}>
+          Your agents are on the hunt
+        </div>
+        <div style={{ fontSize: 13.5, marginTop: 6, maxWidth: "36ch", marginInline: "auto" }}>
+          First matches usually land within ~20 minutes. Want them sooner?
+        </div>
+        <button className="btn primary" style={{ marginTop: 16 }} onClick={onRun}>▶ Run first search now</button>
+      </div>
+    </div>
+  );
+}
+
+// Setup checklist — visible until profile + Telegram are both done.
+function SetupChecklist({ complete, telegram, goProfile }) {
+  if (complete && telegram) return null;
+  return (
+    <div className="card">
+      <p className="section-title" style={{ margin: "0 0 8px" }}>Getting set up</p>
+      <div className="check-row" role={!complete ? "button" : undefined} onClick={!complete ? goProfile : undefined}>
+        <span className={`check-dot ${complete ? "done" : ""}`}>{complete ? "✓" : "1"}</span>
+        <div style={{ flex: 1 }}>
+          <div className="check-title">Complete your profile</div>
+          <div className="hint">{complete ? "Done — your agents know who you are." : "Name, job titles & skills — powers every match."}</div>
+        </div>
+        {!complete && <span className="btn primary sm">Do it</span>}
+      </div>
+      <div className="check-row">
+        <span className={`check-dot ${telegram ? "done" : ""}`}>{telegram ? "✓" : "2"}</span>
+        <div style={{ flex: 1 }}>
+          <div className="check-title">Connect Telegram</div>
+          <div className="hint">{telegram ? "Connected — jobs arrive on your phone." : "Use the card below — send your code to the Jobs bot."}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Today({ me, data, onApp, onSend, reloadMe, complete, goProfile, onRun }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -298,13 +362,19 @@ function Today({ me, data, onApp, onSend, reloadMe }) {
         ))}
       </div>
 
+      <SetupChecklist complete={complete} telegram={me.user?.telegram_connected} goProfile={goProfile} />
+
       <ConnectCard me={me} reloadMe={reloadMe} />
 
       <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} />
 
       <p className="section-title">{titleMap[filter]} · {shown.length}</p>
       {shown.length === 0
-        ? <Empty icon="🛰" title={`No ${titleMap[filter].toLowerCase()} yet`} sub={filter === "today" ? "New matches from the next search will appear here." : "Tap another stat above."} />
+        ? (!complete
+            ? <ProfileCta goProfile={goProfile} />
+            : (filter === "today" || filter === "total")
+              ? <HuntingCta onRun={onRun} />
+              : <Empty icon="🗂" title={`No ${titleMap[filter].toLowerCase()} yet`} sub="Tap another stat above." />)
         : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />)}</div>}
     </div>
   );
@@ -416,7 +486,7 @@ function AdminPanel({ reloadMe, flash }) {
 }
 
 /* ---------------- All jobs ---------------- */
-function AllJobs({ data, onApp, onSend }) {
+function AllJobs({ data, onApp, onSend, complete, goProfile, onRun }) {
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState(null);
   if (!data) return <Loading />;
@@ -447,7 +517,8 @@ function AllJobs({ data, onApp, onSend }) {
           </div>
         </div>
       )}
-      {filtered.length === 0 ? <Empty title="No matching jobs" /> :
+      {jobs.length === 0 ? (!complete ? <ProfileCta goProfile={goProfile} /> : <HuntingCta onRun={onRun} />) :
+       filtered.length === 0 ? <Empty title="No matching jobs" /> :
         <div className="job-list">
           {filtered.map((j) => (
             <div key={j.id || j.url} onClick={(e) => { if (!["A", "SELECT", "OPTION", "BUTTON"].includes(e.target.tagName)) setDetail(j); }}>
