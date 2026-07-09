@@ -1,8 +1,13 @@
 """
 Hourly public-channel content engine (quiet overnight via cron).
-Rotates premium content — jobs, CV tips, interview tips, mistakes, salary,
-role spotlights, motivation — each with a reaction ask, a "Start & get matched"
-funnel button, and cross-platform share buttons (WhatsApp / X / Telegram).
+
+Telegram: premium HTML posts (jobs / tips / spotlights) with reaction asks,
+share buttons and a signup footer. Job links go to OUR web landing pages.
+
+WhatsApp (CallMeBot): the same digest, natively formatted for WhatsApp
+(*bold*, clean layout, all brand links), sent to the owner's DM — followed by
+a SEPARATE "forward this" instruction message so the digest itself stays
+clean and forward-ready for the WhatsApp Channel.
 """
 
 from __future__ import annotations
@@ -11,6 +16,7 @@ import datetime as _dt
 import html
 import os
 import random
+import time
 from urllib.parse import quote
 
 import requests
@@ -22,11 +28,16 @@ CHANNEL = os.getenv("TELEGRAM_CHANNEL", "@dailyjobs_feed")
 TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
 JOIN_URL = os.getenv("DASHBOARD_URL", "https://jobs-finder-dashboard.pages.dev")
 BOT = os.getenv("BOT_USERNAME", "jobs_finder_agent_bot")
+IV_BOT = os.getenv("INTERVIEW_BOT_USERNAME", "interview_prep_coach_bot")
 JOBS_PER_POST = int(os.getenv("CHANNEL_JOBS_PER_POST", "8"))
-RULE = "──────────────"
+CMB_PHONE = os.getenv("CALLMEBOT_PHONE", "").strip()
+CMB_KEY = os.getenv("CALLMEBOT_APIKEY", "").strip()
+
+RULE = "──────────────"          # Telegram divider
+WRULE = "━━━━━━━━━━━━━"          # WhatsApp divider
 CH_URL = f"https://t.me/{CHANNEL.replace('@','')}"
 
-# Rotation across the day — jobs appear often, tips interleave (no repeats back-to-back).
+# Rotation across the day — jobs appear often, tips interleave.
 ROTATION = ["jobs", "cv_tip", "jobs", "interview_tip", "jobs", "mistake",
             "role_spotlight", "jobs", "salary_tip", "motivation", "jobs",
             "did_you_know", "jobs", "interview_tip", "cv_tip", "role_spotlight",
@@ -34,31 +45,31 @@ ROTATION = ["jobs", "cv_tip", "jobs", "interview_tip", "jobs", "mistake",
 
 TIPS = {
     "cv_tip": [
-        ("📄 <b>CV tip of the hour</b>", "Put your best number in the first line. “Cut downtime 20% across 3 sites” beats any adjective. Recruiters skim — lead with proof."),
-        ("📄 <b>CV tip</b>", "Mirror the job ad's exact words. If it says “stakeholder management”, don't write “worked with people”. ATS bots rank on overlap."),
-        ("📄 <b>CV tip</b>", "One page per 10 years of experience. If a bullet doesn't help you get THIS job, cut it."),
+        ("📄 CV tip of the hour", "Put your best number in the first line. “Cut downtime 20% across 3 sites” beats any adjective. Recruiters skim — lead with proof."),
+        ("📄 CV tip", "Mirror the job ad's exact words. If it says “stakeholder management”, don't write “worked with people”. ATS bots rank on overlap."),
+        ("📄 CV tip", "One page per 10 years of experience. If a bullet doesn't help you get THIS job, cut it."),
     ],
     "interview_tip": [
-        ("🎯 <b>Interview tip</b>", "Prep 3 stories that each prove a different strength, then bend them to any question. One strong story beats ten vague answers."),
-        ("🎯 <b>Interview tip</b>", "Always ask: “What does success look like in the first 90 days?” It makes you sound like a hire, not a candidate."),
-        ("🎯 <b>Interview tip</b>", "Use STAR: Situation, Task, Action, Result — and never skip the Result. The number is what they remember."),
+        ("🎯 Interview tip", "Prep 3 stories that each prove a different strength, then bend them to any question. One strong story beats ten vague answers."),
+        ("🎯 Interview tip", "Always ask: “What does success look like in the first 90 days?” It makes you sound like a hire, not a candidate."),
+        ("🎯 Interview tip", "Use STAR: Situation, Task, Action, Result — and never skip the Result. The number is what they remember."),
     ],
     "mistake": [
-        ("🚫 <b>Mistake to avoid</b>", "Sending the same CV everywhere. Recruiters spot a generic CV in seconds. Tailor the summary + top skills to each role."),
-        ("🚫 <b>Mistake to avoid</b>", "Listing duties instead of results. “Managed maintenance” is weak. “Cut breakdowns 30%” gets the call."),
-        ("🚫 <b>Mistake to avoid</b>", "Applying late. The first 48 hours of a posting get the most attention — move fast, set alerts."),
+        ("🚫 Mistake to avoid", "Sending the same CV everywhere. Recruiters spot a generic CV in seconds. Tailor the summary + top skills to each role."),
+        ("🚫 Mistake to avoid", "Listing duties instead of results. “Managed maintenance” is weak. “Cut breakdowns 30%” gets the call."),
+        ("🚫 Mistake to avoid", "Applying late. The first 48 hours of a posting get the most attention — move fast, set alerts."),
     ],
     "salary_tip": [
-        ("💰 <b>Salary tip</b>", "Never say a number first. “I'd love to understand the band for this role” puts the ball back in their court."),
-        ("💰 <b>Salary tip</b>", "Anchor high but reasonable. Research the market range, then aim for the top third — you can always meet in the middle."),
+        ("💰 Salary tip", "Never say a number first. “I'd love to understand the band for this role” puts the ball back in their court."),
+        ("💰 Salary tip", "Anchor high but reasonable. Research the market range, then aim for the top third — you can always meet in the middle."),
     ],
     "motivation": [
-        ("🔥 <b>Keep going</b>", "Every “no” is data, not a verdict. Tweak one thing — your CV, your targeting, or your volume — and send the next one."),
-        ("🔥 <b>Real talk</b>", "The best job you'll ever get is one application away from a “no” you almost didn't send. Keep applying."),
+        ("🔥 Keep going", "Every “no” is data, not a verdict. Tweak one thing — your CV, your targeting, or your volume — and send the next one."),
+        ("🔥 Real talk", "The best job you'll ever get is one application away from a “no” you almost didn't send. Keep applying."),
     ],
     "did_you_know": [
-        ("💡 <b>Did you know?</b>", "Most jobs get filled by people who applied in the first 3 days. Speed beats a “perfect” application sent a week late."),
-        ("💡 <b>Did you know?</b>", "A tailored cover letter can lift your reply rate a lot — and takes 2 minutes when it's auto-written for you."),
+        ("💡 Did you know?", "Most jobs get filled by people who applied in the first 3 days. Speed beats a “perfect” application sent a week late."),
+        ("💡 Did you know?", "A tailored cover letter can lift your reply rate a lot — and takes 2 minutes when it's auto-written for you."),
     ],
 }
 
@@ -68,13 +79,8 @@ def _rotation_key() -> str:
     return ROTATION[hour % len(ROTATION)]
 
 
-CMB_PHONE = os.getenv("CALLMEBOT_PHONE", "").strip()
-CMB_KEY = os.getenv("CALLMEBOT_APIKEY", "").strip()
-
-
 def job_link(j: dict) -> str:
-    """Channel links go to OUR job landing pages (brand + SEO + signup CTA),
-    falling back to the raw apply URL only if a job has no slug."""
+    """Public links go to OUR job landing pages (brand + SEO + signup CTA)."""
     if j.get("slug"):
         return f"{JOIN_URL}/jobs/{j['slug']}"
     return j.get("url", "")
@@ -94,6 +100,9 @@ def pick_diverse_jobs(n: int) -> list[dict]:
     return out
 
 
+# --------------------------------------------------------------------------- #
+# Telegram                                                                     #
+# --------------------------------------------------------------------------- #
 def buttons() -> list:
     share_text = "Free AI job-finder — matched jobs + an auto-written CV & cover letter, straight to your phone. Join 👉"
     wa = f"https://wa.me/?text={quote(share_text + ' ' + CH_URL)}"
@@ -105,26 +114,30 @@ def buttons() -> list:
     ]
 
 
-def send(text: str) -> bool:
+def send_telegram(text: str) -> bool:
     if not TOKEN:
         print("[channel:noop]", text[:100]); return True
-    data = {"chat_id": CHANNEL, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     import json as _json
-    data["reply_markup"] = _json.dumps({"inline_keyboard": buttons()})
+    data = {"chat_id": CHANNEL, "text": text, "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+            "reply_markup": _json.dumps({"inline_keyboard": buttons()})}
     try:
         r = requests.post(_api("sendMessage"), data=data, timeout=30); r.raise_for_status(); return True
     except Exception as exc:
-        print("[channel] send failed:", exc); return False
+        print("[channel] telegram failed:", exc); return False
 
 
 def _react_line() -> str:
     return "\n\n👍 🔥 ❤️  <b>React</b> if this helped · <b>Tag a friend</b> who's job hunting"
 
 
-def content_jobs() -> str:
-    jobs = pick_diverse_jobs(JOBS_PER_POST)
-    if not jobs:
-        return content_tip("interview_tip")
+def _tg_footer() -> str:
+    return (f"\n{RULE}\n"
+            f"🔗 <b>Sign up free</b> — find every job matching your profile, with a tailored CV & cover letter auto-written for each:\n"
+            f"{JOIN_URL}")
+
+
+def tg_jobs(jobs: list[dict]) -> str:
     lines = [f"🔥 <b>Jobs hiring right now</b>\n{RULE}"]
     for j in jobs:
         t = html.escape((j.get("title") or "")[:60]); co = html.escape((j.get("company") or "")[:38])
@@ -134,15 +147,11 @@ def content_jobs() -> str:
     return "\n".join(lines) + _react_line()
 
 
-def content_tip(kind: str) -> str:
-    label, tip = random.choice(TIPS[kind])
-    return f"{label}\n{RULE}\n{tip}\n\n<i>Get jobs matched to you + an AI that writes your CV — free.</i>" + _react_line()
+def tg_tip(label: str, tip: str) -> str:
+    return f"<b>{html.escape(label)}</b>\n{RULE}\n{html.escape(tip)}\n\n<i>Get jobs matched to you + an AI that writes your CV — free.</i>" + _react_line()
 
 
-def content_role_spotlight() -> str:
-    jobs = pick_diverse_jobs(4)
-    if not jobs:
-        return content_tip("cv_tip")
+def tg_spotlight(jobs: list[dict]) -> str:
     lines = [f"🌟 <b>Roles worth a look</b>\n{RULE}"]
     for j in jobs:
         t = html.escape((j.get("title") or "")[:60]); co = html.escape((j.get("company") or "")[:38])
@@ -151,26 +160,49 @@ def content_role_spotlight() -> str:
     return "\n".join(lines) + _react_line()
 
 
-def _footer() -> str:
-    return (f"\n{RULE}\n"
-            f"🔗 <b>Sign up free</b> — find every job matching your profile, with a tailored CV & cover letter auto-written for each:\n"
-            f"{JOIN_URL}")
+# --------------------------------------------------------------------------- #
+# WhatsApp — native premium formatting, forward-ready                          #
+# --------------------------------------------------------------------------- #
+def wa_footer() -> str:
+    return (f"{WRULE}\n"
+            f"🎯 *Get jobs tailored to YOU — free*\n"
+            f"Auto-written CV + cover letter for every match:\n"
+            f"🌐 {JOIN_URL}\n\n"
+            f"✈️ *Jobs bot:* https://t.me/{BOT}\n"
+            f"🧠 *Interview coach:* https://t.me/{IV_BOT}\n"
+            f"📢 *Daily jobs channel:* {CH_URL}")
 
 
-# --------------------------------------------------------------------------- #
-# WhatsApp DM (CallMeBot): sends the same digest to the owner's WhatsApp so   #
-# they can forward it to their WhatsApp Channel in one tap.                   #
-# --------------------------------------------------------------------------- #
-def to_whatsapp(html_text: str) -> str:
-    """Telegram-HTML → WhatsApp plain text (*bold*, _italic_, bare links)."""
-    import re
-    t = html_text
-    t = re.sub(r'<a href="([^"]+)">([^<]*)</a>', lambda m: f"{m.group(2)}\n{m.group(1)}", t)
-    t = t.replace("<b>", "*").replace("</b>", "*")
-    t = t.replace("<i>", "_").replace("</i>", "_")
-    t = re.sub(r"<[^>]+>", "", t)
-    t = html.unescape(t)
-    return t.strip()
+def wa_jobs(jobs: list[dict]) -> str:
+    lines = ["🔥 *JOBS HIRING RIGHT NOW*", WRULE, ""]
+    for j in jobs:
+        t = (j.get("title") or "")[:60]
+        co = (j.get("company") or "")[:38]
+        loc = (j.get("location") or "")[:28]
+        sal = f" · 💰 {j['salary']}" if j.get("salary") else ""
+        meta = " · ".join(x for x in [co, loc] if x) + sal
+        lines.append(f"▸ *{t}*")
+        if meta:
+            lines.append(f"   {meta}")
+        lines.append(f"   {job_link(j)}")
+        lines.append("")
+    lines.append(wa_footer())
+    return "\n".join(lines)
+
+
+def wa_tip(label: str, tip: str) -> str:
+    return f"*{label}*\n{WRULE}\n\n{tip}\n\n{wa_footer()}"
+
+
+def wa_spotlight(jobs: list[dict]) -> str:
+    lines = ["🌟 *ROLES WORTH A LOOK*", WRULE, ""]
+    for j in jobs:
+        t = (j.get("title") or "")[:60]; co = (j.get("company") or "")[:38]
+        lines.append(f"• *{t}* — {co}")
+        lines.append(f"   {job_link(j)}")
+        lines.append("")
+    lines.append(wa_footer())
+    return "\n".join(lines)
 
 
 def send_whatsapp(text: str) -> bool:
@@ -190,18 +222,33 @@ def send_whatsapp(text: str) -> bool:
         return False
 
 
+# --------------------------------------------------------------------------- #
 def main() -> None:
     kind = _rotation_key()
     if kind == "jobs":
-        text = content_jobs()
-    elif kind == "role_spotlight":
-        text = content_role_spotlight()
-    else:
-        text = content_tip(kind)
-    full = text + _footer()
-    send(full)
-    # Mirror to the owner's WhatsApp (forward-ready for the WhatsApp Channel).
-    send_whatsapp("📢 Forward to your WhatsApp Channel:\n\n" + to_whatsapp(full))
+        jobs = pick_diverse_jobs(JOBS_PER_POST)
+        if not jobs:
+            kind = "interview_tip"
+        else:
+            tg_text, wa_text = tg_jobs(jobs), wa_jobs(jobs)
+    if kind == "role_spotlight":
+        jobs = pick_diverse_jobs(4)
+        if not jobs:
+            kind = "cv_tip"
+        else:
+            tg_text, wa_text = tg_spotlight(jobs), wa_spotlight(jobs)
+    if kind not in ("jobs", "role_spotlight"):
+        label, tip = random.choice(TIPS[kind])
+        tg_text, wa_text = tg_tip(label, tip), wa_tip(label, tip)
+
+    send_telegram(tg_text + _tg_footer())
+
+    # WhatsApp: clean forward-ready digest first, then the instruction as its
+    # OWN message so the digest can be forwarded without any meta text in it.
+    if send_whatsapp(wa_text):
+        time.sleep(6)
+        send_whatsapp("👆 *Forward the message above to your WhatsApp Channel* 📢\n_Takes two taps — that's today's post done._")
+
     print(f"channel: posted '{kind}'")
 
 
