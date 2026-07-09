@@ -14,7 +14,8 @@ export async function onRequestPost(context) {
   let update;
   try { update = await request.json(); } catch { return json({ ok: true }); }
   const token = env.TELEGRAM_TOKEN;
-  const channel = env.TELEGRAM_CHANNEL || "@dailyjobs_feed";
+  const channel = (env.TELEGRAM_CHANNEL || "@dailyjobs_feed").replace("@", "");
+  const dash = env.DASHBOARD_URL || "https://jobs-finder-dashboard.pages.dev";
   const RULE = "──────────────";
 
   // Applied button
@@ -54,32 +55,46 @@ export async function onRequestPost(context) {
         await send(token, chatId,
           `✅ <b>You're connected!</b>\n${RULE}\n` +
           `Fresh matching jobs — each with a tailored <b>CV</b> + <b>cover letter</b> + how-to-apply steps — will land right here. 🚀\n\n` +
-          `🧠 Your <b>Interview Prep bot</b> is linked too — open @interview_prep_coach_bot and press Start to prep or run a mock interview.\n\n` +
-          `📢 Follow <a href="https://t.me/${channel.replace('@','')}">${channel}</a> for daily jobs & career tips.`);
+          `🧠 Your <b>Interview Coach bot</b> is linked too — open @interview_prep_coach_bot and press Start.`,
+          [[btnUrl("📢 Follow the channel", `https://t.me/${channel}`)]]);
       } else {
         await send(token, chatId, `❌ <b>Code not recognised</b>\n${RULE}\nCopy the exact code from your dashboard (looks like <code>JF-XXXXXX</code>) and send it here.`);
       }
     } else {
       const already = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
       if (already) {
-        await send(token, chatId, `✅ <b>You're all set.</b>\nNew matching jobs with a tailored CV & cover letter arrive here automatically.\n\n📢 <a href="https://t.me/${channel.replace('@','')}">${channel}</a> — daily jobs & tips.`);
+        await send(token, chatId, `✅ <b>You're all set.</b>\nNew matching jobs with a tailored CV & cover letter arrive here automatically.`,
+          [[btnUrl("📢 Channel", `https://t.me/${channel}`)]]);
       } else {
+        // Auto-welcome funnel: this fires when someone taps "Start" from a
+        // channel post. Greet, explain, and invite them to create an account.
         await send(token, chatId,
-          `👋 <b>Welcome to Jobs Finder</b>\n${RULE}\n` +
-          `I deliver jobs matched to you, each with a ready-to-send CV & cover letter.\n\n` +
-          `To connect: open your dashboard, copy your code (like <code>JF-XXXXXX</code>) and send it here. It links this bot <i>and</i> the Interview Prep bot at once.`);
+          `👋 <b>Welcome to Jobs Finder!</b>\n${RULE}\n` +
+          `I'm your personal job-hunting agent. Here's what I do, free:\n\n` +
+          `🔎 Search jobs 24/7 across Indeed, LinkedIn, Adzuna & more — in every country you pick\n` +
+          `✍️ Auto-write a tailored <b>CV + cover letter</b> for each match\n` +
+          `✈️ Send them right here, ready to apply in minutes\n` +
+          `🧠 Coach you through interviews with a real AI mock interview\n\n` +
+          `👇 <b>Step 1:</b> create your free account, then send me the code it gives you.`,
+          [
+            [btnUrl("🚀 Create my free account", dash)],
+            [btnUrl("📢 Follow the channel", `https://t.me/${channel}`)],
+          ]);
       }
     }
   }
   return json({ ok: true });
 }
 
-async function send(token, chatId, text) {
+function btnUrl(text, url) { return { text, url }; }
+async function send(token, chatId, text, keyboard) {
   if (!token) return;
+  const body = { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true };
+  if (keyboard) body.reply_markup = { inline_keyboard: keyboard };
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      body: JSON.stringify(body),
     });
   } catch {}
 }

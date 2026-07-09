@@ -340,8 +340,12 @@ function AgentGrid({ status, current, running }) {
 function ConnectCard({ me, reloadMe }) {
   const u = me.user || {};
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const connected = u.telegram_connected;
   async function regen() { setBusy(true); try { await api.regenCode(); reloadMe(); } finally { setBusy(false); } }
+  async function copyCode() {
+    try { await navigator.clipboard.writeText(u.connection_code || ""); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+  }
   if (connected) {
     return (
       <div className="card" style={{ borderColor: "color-mix(in srgb, var(--ok) 45%, var(--hair))", display: "flex", alignItems: "center", gap: 10 }}>
@@ -359,7 +363,10 @@ function ConnectCard({ me, reloadMe }) {
         <span style={{ fontSize: 18 }}>🔌</span><span style={{ fontWeight: 650 }}>Telegram not connected</span>
       </div>
       <div className="hint" style={{ margin: "6px 0 10px" }}>Send this code to the Jobs bot — it links the Interview-prep bot (and any future bots) automatically:</div>
-      <div className="code-chip">{u.connection_code || "—"}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="code-chip">{u.connection_code || "—"}</div>
+        <button className="btn sm" onClick={copyCode}>{copied ? "✓ Copied" : "📋 Copy"}</button>
+      </div>
       <div className="row-actions" style={{ marginTop: 10 }}>
         <a className="btn primary sm" href="https://t.me/jobs_finder_agent_bot" target="_blank" rel="noreferrer">Open Jobs bot</a>
         <a className="btn sm" href="https://t.me/interview_prep_coach_bot" target="_blank" rel="noreferrer">Interview bot</a>
