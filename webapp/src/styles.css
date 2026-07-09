@@ -204,6 +204,50 @@ select.status {
 .bar-fill { height: 100%; border-radius: 6px; }
 .funnel { display: flex; flex-direction: column; gap: 6px; }
 
+/* ---- Branded landing / auth ---------------------------------------------- */
+.landing {
+  min-height: 100dvh; padding: 28px 18px calc(28px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+    var(--bg);
+  display: flex; justify-content: center;
+}
+.landing-inner { width: 100%; max-width: 460px; }
+.brand-hero { text-align: center; padding: 8px 4px 6px; }
+.brand-mark {
+  width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 18px; display: grid; place-items: center;
+  font-size: 30px; background: var(--surface); border: 1px solid var(--hair); box-shadow: var(--shadow-lg);
+}
+.brand-title { font-size: 30px; font-weight: 800; letter-spacing: -0.6px; margin: 0; }
+.brand-title .dot { color: var(--accent); }
+.brand-tag { font-size: 18px; font-weight: 650; margin: 8px 0 6px; color: var(--accent); }
+.brand-sub { color: var(--muted); font-size: 14.5px; line-height: 1.55; margin: 0 auto; max-width: 40ch; }
+
+.features { display: grid; gap: 10px; margin: 22px 0; }
+.feature { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--hair); border-radius: 14px; padding: 13px 14px; box-shadow: var(--shadow); }
+.feature-ico { font-size: 20px; width: 34px; height: 34px; display: grid; place-items: center; background: var(--accent-weak); border-radius: 10px; flex: none; }
+.feature-title { font-weight: 650; font-size: 14.5px; }
+.feature-text { color: var(--muted); font-size: 13px; line-height: 1.45; margin-top: 2px; }
+
+.auth-card { background: var(--surface); border: 1px solid var(--hair); border-radius: 20px; padding: 20px; box-shadow: var(--shadow-lg); }
+.btn.big { width: 100%; justify-content: center; padding: 13px; font-size: 15px; margin-top: 4px; }
+.ok-msg { color: var(--ok); font-size: 13px; margin-top: 10px; }
+.fineprint { color: var(--muted); font-size: 12px; text-align: center; margin: 12px 0 0; }
+.landing-foot { text-align: center; color: var(--muted); font-size: 12px; margin: 18px 0 0; }
+
+/* ---- Onboarding tour ------------------------------------------------------ */
+.tour-back { position: fixed; inset: 0; background: rgba(6,8,14,0.6); z-index: 80; display: grid; place-items: center; padding: 20px; }
+.tour-card { background: var(--surface); border-radius: 20px; max-width: 380px; width: 100%; padding: 24px; box-shadow: var(--shadow-lg); text-align: center; }
+.tour-emoji { font-size: 40px; }
+.tour-card h2 { font-size: 20px; margin: 12px 0 6px; letter-spacing: -0.3px; }
+.tour-card p { color: var(--ink-2); font-size: 14.5px; line-height: 1.55; margin: 0 0 8px; }
+.tour-dots { display: flex; gap: 6px; justify-content: center; margin: 16px 0; }
+.tour-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--hair-strong); }
+.tour-dots span.on { background: var(--accent); width: 20px; border-radius: 4px; }
+.tour-actions { display: flex; gap: 8px; align-items: center; }
+.tour-actions .btn { flex: 1; justify-content: center; }
+.tour-skipall { background: none; border: none; color: var(--muted); font-size: 12.5px; cursor: pointer; margin-top: 12px; text-decoration: underline; }
+
 /* ---- Login segmented toggle ---------------------------------------------- */
 .seg { display: flex; background: var(--surface-2); border: 1px solid var(--hair); border-radius: 12px; padding: 3px; margin-bottom: 18px; }
 .seg button { flex: 1; border: none; background: none; padding: 9px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }

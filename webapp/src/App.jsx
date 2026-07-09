@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
 import Login from "./Login";
+import Tour from "./Tour";
 import { Kpi, JobCard, Empty } from "./parts";
 import { ProfileEditor, SearchEditor, ScheduleEditor } from "./Editors";
 import { IconToday, IconJobs, IconApps, IconProfile, IconSearch, IconClock, IconAlert, IconRun, IconRefresh, IconOut, IconSun } from "./icons";
@@ -29,14 +30,24 @@ export default function App() {
   return <Dashboard me={me} reloadMe={loadMe} onLogout={() => { api.logout(); setMe(null); }} theme={theme} setTheme={setTheme} />;
 }
 
+function isProfileComplete(config) {
+  if (!config) return true; // don't nag until loaded
+  const p = config.profile || {}, s = config.search || {};
+  return !!(p.full_name && p.full_name.trim() && (s.job_titles || []).length &&
+            ((p.skills || []).length || (p.experience || []).length));
+}
+
 function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [tab, setTab] = useState("today");
   const [data, setData] = useState(null);
   const [config, setConfig] = useState(null);
   const [toast, setToast] = useState("");
   const [running, setRunning] = useState(false);
+  const [showTour, setShowTour] = useState(() => !localStorage.getItem("jf_tour_done"));
+  const [nagDismissed, setNagDismissed] = useState(false);
   const pollRef = useRef(null);
   const lastJson = useRef("");
+  const complete = isProfileComplete(config);
 
   const load = useCallback(async () => {
     try {
@@ -77,11 +88,14 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   }
 
   async function runNow() {
+    if (!complete) { setTab("profile"); flash("Complete your profile first to get jobs"); return; }
     setRunning(true);
     try { await api.runNow(); flash("Run triggered"); }
     catch (e) { flash(e.message || "Run failed"); }
     finally { setTimeout(() => setRunning(false), 4000); }
   }
+
+  function finishTour() { localStorage.setItem("jf_tour_done", "1"); localStorage.removeItem("jf_new_user"); setShowTour(false); }
 
   async function sendJob(job) {
     await api.sendJob(job);
@@ -131,6 +145,22 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
           </button>
         ))}
       </nav>
+
+      {showTour && <Tour onDone={finishTour} />}
+
+      {!showTour && config && !complete && !nagDismissed && (
+        <div className="modal-back" onClick={() => setNagDismissed(true)}>
+          <div className="tour-card fade" onClick={(e) => e.stopPropagation()}>
+            <div className="tour-emoji">📝</div>
+            <h2>Complete your profile</h2>
+            <p>Add your name, job titles and skills so the agents can find and tailor jobs for you. It takes 2 minutes and it's what makes the matches great.</p>
+            <div className="tour-actions">
+              <button className="btn ghost" onClick={() => setNagDismissed(true)}>Later</button>
+              <button className="btn primary" onClick={() => { setTab("profile"); setNagDismissed(true); }}>Complete profile</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <div className="toast fade">{toast}</div>}
     </div>
