@@ -60,8 +60,9 @@ async function hmac(secret, data) {
   return bytesToB64(new Uint8Array(sig)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export async function createSessionCookie(username, secret) {
-  const payload = JSON.stringify({ u: username, exp: Date.now() + COOKIE_MAX_AGE * 1000 });
+export async function createSessionCookie(session, secret) {
+  // session: { uid, email, admin, imp } — imp = impersonated user id (admin only)
+  const payload = JSON.stringify({ ...session, exp: Date.now() + COOKIE_MAX_AGE * 1000 });
   const body = b64url(payload);
   const sig = await hmac(secret, body);
   const value = `${body}.${sig}`;
@@ -83,10 +84,20 @@ export async function verifySession(request, secret) {
   try {
     const payload = JSON.parse(b64urlDecode(body));
     if (!payload.exp || payload.exp < Date.now()) return null;
-    return payload.u;
+    return payload; // { uid, email, admin, imp, exp }
   } catch {
     return null;
   }
+}
+
+// Create a PBKDF2 hash (for signup). Mirrors verifyPassword's format.
+export async function hashPassword(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, key, 256
+  );
+  return `pbkdf2$100000$${bytesToB64(salt)}$${bytesToB64(new Uint8Array(bits))}`;
 }
 
 export { COOKIE_NAME };

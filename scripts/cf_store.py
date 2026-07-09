@@ -123,3 +123,17 @@ def kv_put(key: str, value: Any) -> None:
         resp.raise_for_status()
     except requests.RequestException as exc:  # pragma: no cover
         print(f"[cf_store] WARN: kv_put({key}) failed: {exc}")
+
+
+def kv_put_bytes(key: str, data: bytes) -> bool:
+    """Store raw bytes (e.g. a PDF) under a KV key. No-op locally."""
+    if not kv_available():
+        return False
+    url = f"{_base_url()}/values/{key}"
+    try:
+        resp = requests.put(url, headers=_headers(), data=data, timeout=60)
+        resp.raise_for_status()
+        return True
+    except requests.RequestException as exc:  # pragma: no cover
+        print(f"[cf_store] WARN: kv_put_bytes({key}) failed: {exc}")
+        return False

@@ -16,3 +16,8 @@ compatibility_date = "2024-09-01"
 [[kv_namespaces]]
 binding = "KV"
 id = "942b366d2d8d46a9b19a6e7d01552049"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jobs-finder-db"
+database_id = "584ed061-2e30-4c7f-a34d-0f1934d7a4d3"

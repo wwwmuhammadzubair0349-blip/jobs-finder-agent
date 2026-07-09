@@ -1,23 +1,20 @@
-// POST /api/application  { job_url, title, company, status }
-// Upserts an application record in KV `applications`.
-import { json, badRequest, kvJSON, kvPut } from "../_shared/kv.js";
+// POST /api/application { job_url, status } — update this user's job status.
+import { run } from "../_shared/db.js";
+import { json, badRequest } from "../_shared/kv.js";
 
 const STATUSES = ["saved", "applied", "interview", "rejected", "offer"];
 
 export async function onRequestPost(context) {
-  const { env } = context;
+  const { env, data } = context;
   let body;
   try { body = await context.request.json(); } catch { return badRequest("invalid json"); }
-  const { job_url, title, company, status } = body || {};
+  const { job_url, status } = body || {};
   if (!job_url || !STATUSES.includes(status)) return badRequest("job_url + valid status required");
 
-  const apps = (await kvJSON(env, "applications", [])) || [];
-  const now = new Date().toISOString();
-  const idx = apps.findIndex((a) => a.job_url === job_url);
-  const entry = { job_url, title: title || "", company: company || "", status, at: now };
-  if (idx >= 0) apps[idx] = { ...apps[idx], ...entry };
-  else apps.unshift(entry);
-
-  await kvPut(env, "applications", apps.slice(0, 500));
+  const appliedAt = status === "applied" ? new Date().toISOString() : null;
+  await run(env,
+    `UPDATE user_jobs SET status = ?, applied_at = COALESCE(?, applied_at)
+       WHERE user_id = ? AND job_id IN (SELECT id FROM job_pool WHERE url = ?)`,
+    status, appliedAt, data.userId, job_url);
   return json({ ok: true });
 }

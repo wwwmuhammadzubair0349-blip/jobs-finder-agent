@@ -1,79 +1,61 @@
-// GET  /api/config          → full editable config (profile, search, schedule)
-// POST /api/config { section, data }  → validate + merge one section into KV `config`
-//   section ∈ "profile" | "search" | "schedule"
-import { json, badRequest, kvJSON, kvPut } from "../_shared/kv.js";
+// GET /api/config  → this user's profile/search/schedule (from D1 `configs`)
+// POST /api/config { section, data } → validate + save one section
+import { one, run, DEFAULT_PROFILE, DEFAULT_SEARCH, DEFAULT_SETTINGS } from "../_shared/db.js";
+import { json, badRequest } from "../_shared/kv.js";
 
-const DEFAULT_PROFILE = {
-  full_name: "", headline: "", location: "", phone: "", email: "",
-  links: { linkedin: "", portfolio: "", github: "" },
-  professional_summary: "", skills: [], tools: [], languages: [],
-  experience: [], education: [], certifications: [],
-  achievements: [], projects: [], awards: [], memberships: [],
-  target_roles: [], seniority: "mid", work_pref: "remote",
-  min_salary: 0, willing_to_relocate: false,
-};
-const DEFAULT_SEARCH = {
-  job_titles: [], locations: [], remote: true, seniority: "mid",
-  keywords_include: [], keywords_exclude: [],
-  sources: ["remotive"], adzuna_country: "gb", adzuna_countries: ["gb"],
-  posted_within_days: 7, match_threshold: 55, max_per_tick: 5,
-};
-const DEFAULT_SCHEDULE = {
-  check_every_min: 30, quiet_hours: null, timezone: "UTC",
-  max_per_tick: 5, match_threshold: 55,
-};
+async function loadConfig(env, userId) {
+  const row = await one(env, "SELECT profile, search, settings FROM configs WHERE user_id = ?", userId);
+  const p = row?.profile ? JSON.parse(row.profile) : {};
+  const s = row?.search ? JSON.parse(row.search) : {};
+  const st = row?.settings ? JSON.parse(row.settings) : {};
+  return {
+    profile: { ...DEFAULT_PROFILE, ...p },
+    search: { ...DEFAULT_SEARCH, ...s },
+    settings: { ...DEFAULT_SETTINGS, ...st },
+  };
+}
 
 export async function onRequestGet(context) {
-  const cfg = (await kvJSON(context.env, "config", {})) || {};
-  return json({
-    profile: { ...DEFAULT_PROFILE, ...(cfg.profile || {}) },
-    search: { ...DEFAULT_SEARCH, ...(cfg.search || {}) },
-    schedule: {
-      ...DEFAULT_SCHEDULE,
-      check_every_min: cfg.check_every_min ?? DEFAULT_SCHEDULE.check_every_min,
-      quiet_hours: cfg.quiet_hours ?? DEFAULT_SCHEDULE.quiet_hours,
-      timezone: cfg.timezone ?? DEFAULT_SCHEDULE.timezone,
-      max_per_tick: cfg.max_per_tick ?? DEFAULT_SCHEDULE.max_per_tick,
-      match_threshold: cfg.match_threshold ?? DEFAULT_SCHEDULE.match_threshold,
-    },
-  });
+  const cfg = await loadConfig(context.env, context.data.userId);
+  return json({ profile: cfg.profile, search: cfg.search, schedule: cfg.settings });
 }
 
 export async function onRequestPost(context) {
-  const { env } = context;
+  const { env, data } = context;
   let body;
   try { body = await context.request.json(); } catch { return badRequest("invalid json"); }
-  const { section, data } = body || {};
+  const { section, data: payload } = body || {};
   if (!["profile", "search", "schedule"].includes(section)) return badRequest("bad section");
-  if (typeof data !== "object" || data === null) return badRequest("bad data");
+  if (typeof payload !== "object" || payload === null) return badRequest("bad data");
 
-  const cfg = (await kvJSON(env, "config", {})) || {};
+  const cfg = await loadConfig(env, data.userId);
+  let profile = cfg.profile, search = cfg.search, settings = cfg.settings;
 
   if (section === "profile") {
-    cfg.profile = { ...DEFAULT_PROFILE, ...(cfg.profile || {}), ...data };
+    profile = { ...profile, ...payload };
   } else if (section === "search") {
-    cfg.search = { ...DEFAULT_SEARCH, ...(cfg.search || {}), ...data };
-    cfg.match_threshold = clampInt(cfg.search.match_threshold, 0, 100, 55);
-    cfg.max_per_tick = clampInt(cfg.search.max_per_tick, 1, 25, 5);
+    search = { ...search, ...payload };
+    search.match_threshold = clampInt(search.match_threshold, 0, 100, 55);
+    search.max_per_tick = clampInt(search.max_per_tick, 1, 25, 5);
   } else if (section === "schedule") {
-    cfg.check_every_min = clampInt(data.check_every_min, 5, 240, 30);
-    cfg.timezone = typeof data.timezone === "string" ? data.timezone : (cfg.timezone || "UTC");
-    cfg.quiet_hours = validQuiet(data.quiet_hours) ? data.quiet_hours : null;
-    if (data.max_per_tick != null) cfg.max_per_tick = clampInt(data.max_per_tick, 1, 25, 5);
-    if (data.match_threshold != null) cfg.match_threshold = clampInt(data.match_threshold, 0, 100, 55);
+    settings.check_every_min = clampInt(payload.check_every_min, 5, 240, 30);
+    settings.timezone = typeof payload.timezone === "string" ? payload.timezone : (settings.timezone || "UTC");
+    settings.quiet_hours = validQuiet(payload.quiet_hours) ? payload.quiet_hours : null;
   }
 
-  await kvPut(env, "config", cfg);
+  await run(env,
+    "INSERT INTO configs (user_id, profile, search, settings) VALUES (?,?,?,?) " +
+    "ON CONFLICT(user_id) DO UPDATE SET profile=excluded.profile, search=excluded.search, settings=excluded.settings",
+    data.userId, JSON.stringify(profile), JSON.stringify(search), JSON.stringify(settings));
+
   return json({ ok: true });
 }
 
 function clampInt(v, lo, hi, dflt) {
   const n = parseInt(v, 10);
-  if (Number.isNaN(n)) return dflt;
-  return Math.max(lo, Math.min(hi, n));
+  return Number.isNaN(n) ? dflt : Math.max(lo, Math.min(hi, n));
 }
 function validQuiet(q) {
-  if (!q) return false;
   const re = /^\d{2}:\d{2}$/;
-  return re.test(q.start || "") && re.test(q.end || "");
+  return q && re.test(q.start || "") && re.test(q.end || "");
 }

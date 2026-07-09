@@ -13,12 +13,18 @@ async function req(path, opts = {}) {
 
 export const api = {
   me: () => req("/me"),
-  login: (username, password) => req("/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  signup: (email, password) => req("/signup", { method: "POST", body: JSON.stringify({ email, password }) }),
+  login: (email, password) => req("/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => req("/logout", { method: "POST" }),
   data: () => req("/data"),
   getConfig: () => req("/config"),
   saveConfig: (section, data) => req("/config", { method: "POST", body: JSON.stringify({ section, data }) }),
   setApplication: (entry) => req("/application", { method: "POST", body: JSON.stringify(entry) }),
   runNow: () => req("/run", { method: "POST" }),
-  sendJob: (job) => req("/send-job", { method: "POST", body: JSON.stringify({ job }) }),
+  sendJob: (job) => req("/send-job", { method: "POST", body: JSON.stringify({ job_id: job.id }) }),
+  regenCode: () => req("/code", { method: "POST" }),
+  // admin
+  adminUsers: () => req("/admin-users"),
+  adminSwitch: (user_id) => req("/admin-switch", { method: "POST", body: JSON.stringify({ user_id }) }),
+  adminAction: (user_id, action) => req("/admin-action", { method: "POST", body: JSON.stringify({ user_id, action }) }),
 };

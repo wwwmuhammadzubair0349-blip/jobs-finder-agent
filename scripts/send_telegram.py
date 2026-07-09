@@ -33,12 +33,13 @@ def _api(method: str) -> str:
     return f"https://api.telegram.org/bot{TOKEN}/{method}"
 
 
-def send_message(text: str, disable_preview: bool = False, reply_markup: dict | None = None) -> bool:
-    if not enabled():
+def send_message(text: str, disable_preview: bool = False, reply_markup: dict | None = None, chat_id: str | None = None) -> bool:
+    target = chat_id or CHAT_ID
+    if not TOKEN or not target:
         print(f"[telegram:noop] {text[:200]}")
         return True
     data = {
-        "chat_id": CHAT_ID,
+        "chat_id": target,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": disable_preview,
@@ -55,8 +56,9 @@ def send_message(text: str, disable_preview: bool = False, reply_markup: dict | 
         return False
 
 
-def send_document(path: Path, caption: str = "") -> bool:
-    if not enabled():
+def send_document(path: Path, caption: str = "", chat_id: str | None = None) -> bool:
+    target = chat_id or CHAT_ID
+    if not TOKEN or not target:
         print(f"[telegram:noop] document {path}")
         return True
     path = Path(path)
@@ -67,7 +69,7 @@ def send_document(path: Path, caption: str = "") -> bool:
         with path.open("rb") as fh:
             resp = requests.post(
                 _api("sendDocument"),
-                data={"chat_id": CHAT_ID, "caption": caption[:1000], "parse_mode": "HTML"},
+                data={"chat_id": target, "caption": caption[:1000], "parse_mode": "HTML"},
                 files={"document": (path.name, fh)},
                 timeout=90,
             )
@@ -117,21 +119,21 @@ def _applied_keyboard(job: dict) -> dict:
     ]]}
 
 
-def send_job(job: dict, files: dict, cv_data: dict | None = None) -> bool:
+def send_job(job: dict, files: dict, cv_data: dict | None = None, chat_id: str | None = None) -> bool:
     """files: {'cv_pdf', 'cover_pdf', 'cv_txt'}; cv_data carries apply_steps."""
     caption = _job_caption(job) + _apply_steps_text(job, cv_data or {})
-    ok = send_message(caption, reply_markup=_applied_keyboard(job))
+    ok = send_message(caption, reply_markup=_applied_keyboard(job), chat_id=chat_id)
 
     cv_pdf = files.get("cv_pdf")
     cover_pdf = files.get("cover_pdf")
     cv_txt = files.get("cv_txt")
 
     if cv_pdf:
-        ok = send_document(Path(cv_pdf), caption=f"📄 Tailored CV — {job.get('title','')}") and ok
+        ok = send_document(Path(cv_pdf), caption=f"📄 Tailored CV — {job.get('title','')}", chat_id=chat_id) and ok
     if cover_pdf:
-        ok = send_document(Path(cover_pdf), caption="✉️ Cover letter") and ok
+        ok = send_document(Path(cover_pdf), caption="✉️ Cover letter", chat_id=chat_id) and ok
     if cv_txt:
-        ok = send_document(Path(cv_txt), caption="📋 Plain-text ATS CV (copy/paste)") and ok
+        ok = send_document(Path(cv_txt), caption="📋 Plain-text ATS CV (copy/paste)", chat_id=chat_id) and ok
     return ok
 
 

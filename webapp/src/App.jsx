@@ -16,20 +16,21 @@ const TABS = [
 ];
 
 export default function App() {
-  const [user, setUser] = useState(undefined); // undefined=loading, null=logged out
+  const [me, setMe] = useState(undefined); // undefined=loading, null=logged out
   const [theme, setTheme] = useState(() => localStorage.getItem("jf_theme") || "");
 
-  useEffect(() => { api.me().then((r) => setUser(r.user)).catch(() => setUser(null)); }, []);
+  const loadMe = useCallback(() => api.me().then(setMe).catch(() => setMe(null)), []);
+  useEffect(() => { loadMe(); }, [loadMe]);
   useEffect(() => {
     if (theme) { document.documentElement.setAttribute("data-theme", theme); localStorage.setItem("jf_theme", theme); }
   }, [theme]);
 
-  if (user === undefined) return <div className="login-wrap"><div className="pill">Loading…</div></div>;
-  if (!user) return <Login onLogin={setUser} />;
-  return <Dashboard user={user} onLogout={() => { api.logout(); setUser(null); }} theme={theme} setTheme={setTheme} />;
+  if (me === undefined) return <div className="login-wrap"><div className="pill">Loading…</div></div>;
+  if (!me) return <Login onLogin={loadMe} />;
+  return <Dashboard me={me} reloadMe={loadMe} onLogout={() => { api.logout(); setMe(null); }} theme={theme} setTheme={setTheme} />;
 }
 
-function Dashboard({ user, onLogout, theme, setTheme }) {
+function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [tab, setTab] = useState("today");
   const [data, setData] = useState(null);
   const [config, setConfig] = useState(null);
@@ -103,10 +104,18 @@ function Dashboard({ user, onLogout, theme, setTheme }) {
         <button className="icon-btn" title="Sign out" onClick={onLogout}><IconOut /></button>
       </div>
 
+      {me.impersonating && (
+        <div className="imp-bar">
+          👁 Viewing as <b>{me.impersonating}</b>
+          <button className="btn sm" onClick={async () => { await api.adminSwitch(null); reloadMe(); load(); flash("Back to admin"); }}>Exit</button>
+        </div>
+      )}
+
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today data={data} onApp={setApp} onSend={sendJob} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} reloadMe={reloadMe} />}
+        {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
         {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} />}
         {tab === "apps" && <Applications data={data} />}
         {tab === "profile" && (config ? <ProfileEditor key="p" initial={config.profile} onSave={saveConfig} /> : <Loading />)}
@@ -116,7 +125,7 @@ function Dashboard({ user, onLogout, theme, setTheme }) {
       </div>
 
       <nav className="tabbar">
-        {TABS.map((t) => (
+        {(me.admin ? [...TABS, { id: "admin", label: "Admin", icon: IconProfile }] : TABS).map((t) => (
           <button key={t.id} className={`tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)} style={{ position: "relative" }}>
             <t.icon />
             {t.id === "issues" && errCount > 0 && <span className="badge">{errCount}</span>}
@@ -222,7 +231,7 @@ function ActivityBar({ latest }) {
 }
 
 /* ---------------- Today ---------------- */
-function Today({ data, onApp, onSend }) {
+function Today({ me, data, onApp, onSend, reloadMe }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -257,7 +266,9 @@ function Today({ data, onApp, onSend }) {
         ))}
       </div>
 
-      <AgentStrip status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} />
+      <ConnectCard me={me} reloadMe={reloadMe} />
+
+      <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} />
 
       <p className="section-title">{titleMap[filter]} · {shown.length}</p>
       {shown.length === 0
@@ -267,27 +278,97 @@ function Today({ data, onApp, onSend }) {
   );
 }
 
-// Compact agent strip for the main dashboard.
-function AgentStrip({ status, current, running }) {
+// Agent grid — all agents fit on screen (no side-scroll), premium pulse on active.
+function AgentGrid({ status, current, running }) {
   const byName = Object.fromEntries((status || []).map((s) => [s.name, s]));
   return (
-    <div style={{ marginBottom: 6 }}>
+    <div style={{ marginBottom: 8 }}>
       <p className="section-title">🤖 Agent team {running && <span style={{ color: "var(--info)" }}>· live</span>}</p>
-      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
+      <div className="agent-grid">
         {AGENTS.map((a) => {
           const s = byName[a.key];
           const active = current && current.agent === a.key;
           const state = active ? "green" : s?.state || "gray";
           const dot = state === "green" ? "var(--ok)" : state === "red" ? "var(--err)" : state === "yellow" ? "var(--warn)" : "var(--hair-strong)";
           return (
-            <div key={a.key} title={active && current.job ? current.job : a.name}
-              style={{ flex: "none", padding: "8px 11px", borderRadius: 10, border: `1px solid ${active ? "var(--accent)" : "var(--hair)"}`, background: "var(--surface)", display: "flex", alignItems: "center", gap: 6 }}>
-              {active ? <span className="spinner" style={{ width: 11, height: 11, borderWidth: 2 }} /> : <span className="status-dot" style={{ background: dot }} />}
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{a.emoji} {a.name}</span>
+            <div key={a.key} className={`agent-cell${active ? " active" : ""}`} title={a.name}>
+              <span className="agent-emoji">{a.emoji}</span>
+              <span className="agent-name">{a.name}</span>
+              {active ? <span className="agent-pulse" /> : <span className="status-dot" style={{ background: dot }} />}
+              <span className="agent-when">{active ? "now" : s?.last_run ? timeAgo(s.last_run) : "idle"}</span>
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Telegram connection status + code.
+function ConnectCard({ me, reloadMe }) {
+  const u = me.user || {};
+  const [busy, setBusy] = useState(false);
+  const connected = u.telegram_connected;
+  async function regen() { setBusy(true); try { await api.regenCode(); reloadMe(); } finally { setBusy(false); } }
+  if (connected) {
+    return (
+      <div className="card" style={{ borderColor: "color-mix(in srgb, var(--ok) 45%, var(--hair))", display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 20 }}>✅</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 650 }}>Telegram connected</div>
+          <div className="hint">Jobs, CVs & interview prep arrive in your Telegram.{u.interview_connected ? " Interview bot linked too." : ""}</div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="card" style={{ borderColor: "color-mix(in srgb, var(--warn) 45%, var(--hair))" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 18 }}>🔌</span><span style={{ fontWeight: 650 }}>Telegram not connected</span>
+      </div>
+      <div className="hint" style={{ margin: "6px 0 10px" }}>Connect to receive your jobs & CVs. In Telegram, open the bots and send this code:</div>
+      <div className="code-chip">{u.connection_code || "—"}</div>
+      <div className="row-actions" style={{ marginTop: 10 }}>
+        <a className="btn primary sm" href="https://t.me/jobs_finder_agent_bot" target="_blank" rel="noreferrer">Open Jobs bot</a>
+        <a className="btn sm" href="https://t.me/interview_prep_coach_bot" target="_blank" rel="noreferrer">Interview bot</a>
+        <button className="btn ghost sm" onClick={regen} disabled={busy}>New code</button>
+      </div>
+    </div>
+  );
+}
+
+// Admin panel with switch-to-user.
+function AdminPanel({ reloadMe, flash }) {
+  const [users, setUsers] = useState(null);
+  const load = useCallback(() => api.adminUsers().then((r) => setUsers(r.users)).catch(() => {}), []);
+  useEffect(() => { load(); }, [load]);
+  if (!users) return <Loading />;
+  async function act(u, action) {
+    if (action === "delete" && !confirm(`Delete ${u.email}? This removes all their data.`)) return;
+    await api.adminAction(u.id, action); flash(`${action} ${u.email}`); load();
+  }
+  return (
+    <div className="fade">
+      <p className="section-title">All users · {users.length}</p>
+      {users.map((u) => (
+        <div className="card" key={u.id}>
+          <div className="job-top">
+            <div>
+              <div className="job-title" style={{ fontSize: 15 }}>{u.email} {u.is_admin && <span className="tag">admin</span>}</div>
+              <div className="hint">{u.jobs} jobs · {u.applied} applied · {u.telegram_connected ? "TG ✓" : "TG ✗"} · {u.status} · active {timeAgo(u.last_active)}</div>
+            </div>
+          </div>
+          {!u.is_admin && (
+            <div className="row-actions">
+              <button className="btn primary sm" onClick={async () => { await api.adminSwitch(u.id); reloadMe(); flash(`Viewing as ${u.email}`); }}>Switch to user</button>
+              {u.status === "active"
+                ? <button className="btn sm" onClick={() => act(u, "disable")}>Disable</button>
+                : <button className="btn sm" onClick={() => act(u, "enable")}>Enable</button>}
+              <button className="btn ghost sm" onClick={() => act(u, "delete")} style={{ color: "var(--err)" }}>Delete</button>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
