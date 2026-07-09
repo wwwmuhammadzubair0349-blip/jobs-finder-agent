@@ -56,7 +56,9 @@ def upsert_pool_jobs(jobs: list[dict], ttl_days: int = 30, chunk: int = 7) -> No
         execute(
             "INSERT INTO job_pool (id, source, title, company, location, remote, salary, posted_at, url, description, category, country, discovered_at, expires_at) "
             f"VALUES {placeholders} "
-            "ON CONFLICT(id) DO UPDATE SET discovered_at=excluded.discovered_at, expires_at=excluded.expires_at",
+            "ON CONFLICT(id) DO UPDATE SET salary=excluded.salary, title=excluded.title, "
+            "company=excluded.company, location=excluded.location, remote=excluded.remote, "
+            "description=excluded.description, discovered_at=excluded.discovered_at, expires_at=excluded.expires_at",
             params,
         )
 
