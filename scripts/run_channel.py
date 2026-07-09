@@ -86,6 +86,15 @@ def job_link(j: dict) -> str:
     return j.get("url", "")
 
 
+def short_link(j: dict) -> str:
+    """Tiny redirect link (/j/<code>) — keeps WhatsApp/captions compact."""
+    slug = j.get("slug") or ""
+    code = slug.rsplit("-", 1)[-1] if "-" in slug else ""
+    if code and code.isalnum():
+        return f"{JOIN_URL}/j/{code}"
+    return job_link(j)
+
+
 def pick_diverse_jobs(n: int) -> list[dict]:
     rows = query("SELECT title, company, location, salary, url, slug FROM job_pool WHERE url != '' ORDER BY discovered_at DESC LIMIT 400")
     random.shuffle(rows)
@@ -187,7 +196,7 @@ def wa_jobs(jobs: list[dict]) -> str:
         loc = (j.get("location") or "")[:24]
         sal = f" · 💰 {j['salary']}" if j.get("salary") else ""
         meta = " · ".join(x for x in [co, loc] if x) + sal
-        block = f"\n▸ *{t}*\n   {meta}\n   {job_link(j)}\n"
+        block = f"\n▸ *{t}*\n   {meta}\n   {short_link(j)}\n"
         if used + len(block) > budget:
             break
         blocks.append(block); used += len(block)
@@ -205,7 +214,7 @@ def wa_spotlight(jobs: list[dict]) -> str:
     blocks, used = [], 0
     for j in jobs:
         t = (j.get("title") or "")[:55]; co = (j.get("company") or "")[:32]
-        block = f"\n• *{t}* — {co}\n   {job_link(j)}\n"
+        block = f"\n• *{t}* — {co}\n   {short_link(j)}\n"
         if used + len(block) > budget:
             break
         blocks.append(block); used += len(block)
@@ -250,12 +259,9 @@ def main() -> None:
 
     send_telegram(tg_text + _tg_footer())
 
-    # WhatsApp: clean forward-ready digest first, then the instruction as its
-    # OWN message. CallMeBot merges messages queued close together, so wait
-    # long enough for the first to actually deliver before sending the second.
-    if send_whatsapp(wa_text):
-        time.sleep(45)
-        send_whatsapp("👆 *Forward the message above to your WhatsApp Channel* 📢\n_Takes two taps — that's today's post done._")
+    # WhatsApp: ONE compact, forward-ready digest (short links keep it well
+    # under CallMeBot's limit; no second message — CallMeBot merges them).
+    send_whatsapp(wa_text)
 
     print(f"channel: posted '{kind}'")
 
