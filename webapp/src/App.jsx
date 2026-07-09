@@ -36,10 +36,15 @@ function Dashboard({ user, onLogout, theme, setTheme }) {
   const [toast, setToast] = useState("");
   const [running, setRunning] = useState(false);
   const pollRef = useRef(null);
+  const lastJson = useRef("");
 
   const load = useCallback(async () => {
-    try { setData(await api.data()); }
-    catch (e) { if (e.unauthorized) onLogout(); }
+    try {
+      const d = await api.data();
+      const s = JSON.stringify(d);
+      // Only re-render when something actually changed → zero flicker.
+      if (s !== lastJson.current) { lastJson.current = s; setData(d); }
+    } catch (e) { if (e.unauthorized) onLogout(); }
   }, [onLogout]);
 
   const loadConfig = useCallback(async () => {
@@ -218,28 +223,71 @@ function ActivityBar({ latest }) {
 
 /* ---------------- Today ---------------- */
 function Today({ data, onApp, onSend }) {
+  const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
-  const recent = data.recent_jobs || [];
   const allJobs = data.jobs || [];
   const apps = data.applications || [];
   const appMap = Object.fromEntries(apps.map((a) => [a.job_url, a.status]));
+  const eff = (j) => appMap[j.url] || j.status;
+
   const total = allJobs.length;
-  const foundToday = allJobs.filter((j) => withinHours(j.first_seen || j.sent_at, 24)).length;
-  const appliedCount = apps.filter((a) => a.status === "applied").length + allJobs.filter((j) => j.status === "applied").length;
-  const interviews = apps.filter((a) => a.status === "interview").length;
+  const todayJobs = allJobs.filter((j) => withinHours(j.first_seen || j.sent_at, 24));
+  const appliedJobs = allJobs.filter((j) => eff(j) === "applied");
+  const interviewJobs = allJobs.filter((j) => eff(j) === "interview");
+
+  const KPIS = [
+    { id: "total", value: total, label: "Total jobs" },
+    { id: "today", value: todayJobs.length, label: "Found today" },
+    { id: "applied", value: appliedJobs.length, label: "Applied" },
+    { id: "interviews", value: interviewJobs.length, label: "Interviews" },
+  ];
+  const lists = { total: allJobs, today: todayJobs, applied: appliedJobs, interviews: interviewJobs };
+  const shown = (lists[filter] || []).slice(0, 60);
+  const titleMap = { total: "All jobs", today: "Found today", applied: "Applied", interviews: "Interviews" };
 
   return (
     <div className="fade">
       <div className="kpis">
-        <Kpi value={total} label="Total jobs" />
-        <Kpi value={foundToday} label="Found today" />
-        <Kpi value={appliedCount} label="Applied" />
-        <Kpi value={interviews} label="Interviews" />
+        {KPIS.map((k) => (
+          <button key={k.id} className="kpi" onClick={() => setFilter(k.id)}
+            style={{ textAlign: "left", cursor: "pointer", ...(filter === k.id ? { borderColor: "var(--accent)", boxShadow: "0 0 0 2px var(--accent-weak)" } : {}) }}>
+            <div className="v num">{k.value}</div>
+            <div className="l">{k.label}</div>
+          </button>
+        ))}
       </div>
-      <p className="section-title">Fresh matches</p>
-      {recent.length === 0
-        ? <Empty icon="🛰" title="No jobs yet" sub="The next search tick will drop new matches here." />
-        : recent.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />)}
+
+      <AgentStrip status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} />
+
+      <p className="section-title">{titleMap[filter]} · {shown.length}</p>
+      {shown.length === 0
+        ? <Empty icon="🛰" title={`No ${titleMap[filter].toLowerCase()} yet`} sub={filter === "today" ? "New matches from the next search will appear here." : "Tap another stat above."} />
+        : shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />)}
+    </div>
+  );
+}
+
+// Compact agent strip for the main dashboard.
+function AgentStrip({ status, current, running }) {
+  const byName = Object.fromEntries((status || []).map((s) => [s.name, s]));
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <p className="section-title">🤖 Agent team {running && <span style={{ color: "var(--info)" }}>· live</span>}</p>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
+        {AGENTS.map((a) => {
+          const s = byName[a.key];
+          const active = current && current.agent === a.key;
+          const state = active ? "green" : s?.state || "gray";
+          const dot = state === "green" ? "var(--ok)" : state === "red" ? "var(--err)" : state === "yellow" ? "var(--warn)" : "var(--hair-strong)";
+          return (
+            <div key={a.key} title={active && current.job ? current.job : a.name}
+              style={{ flex: "none", padding: "8px 11px", borderRadius: 10, border: `1px solid ${active ? "var(--accent)" : "var(--hair)"}`, background: "var(--surface)", display: "flex", alignItems: "center", gap: 6 }}>
+              {active ? <span className="spinner" style={{ width: 11, height: 11, borderWidth: 2 }} /> : <span className="status-dot" style={{ background: dot }} />}
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{a.emoji} {a.name}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

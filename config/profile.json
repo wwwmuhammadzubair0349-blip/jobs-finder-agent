@@ -31,6 +31,10 @@
     { "degree": "BSc Computer Science", "school": "Some University", "year": "2021" }
   ],
   "certifications": [],
+  "achievements": [],
+  "projects": [],
+  "awards": [],
+  "memberships": [],
   "target_roles": ["Software Engineer", "Backend Engineer"],
   "seniority": "mid",
   "work_pref": "remote",

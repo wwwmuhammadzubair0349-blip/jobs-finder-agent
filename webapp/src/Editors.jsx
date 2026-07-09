@@ -30,6 +30,14 @@ export function ProfileEditor({ initial, onSave }) {
   const addEdu = () => set("education", [...(p.education || []), { degree: "", school: "", year: "" }]);
   const rmEdu = (i) => set("education", (p.education || []).filter((_, x) => x !== i));
 
+  const setProj = (i, k, v) => { const e = [...(p.projects || [])]; e[i] = { ...e[i], [k]: v }; set("projects", e); };
+  const addProj = () => set("projects", [...(p.projects || []), { name: "", description: "" }]);
+  const rmProj = (i) => set("projects", (p.projects || []).filter((_, x) => x !== i));
+
+  const setAward = (i, k, v) => { const e = [...(p.awards || [])]; e[i] = { ...e[i], [k]: v }; set("awards", e); };
+  const addAward = () => set("awards", [...(p.awards || []), { name: "", issuer: "", year: "" }]);
+  const rmAward = (i) => set("awards", (p.awards || []).filter((_, x) => x !== i));
+
   async function save() {
     setBusy(true);
     try { await onSave("profile", p); setDirty(false); setSaved(true); }
@@ -90,6 +98,40 @@ export function ProfileEditor({ initial, onSave }) {
         </div>
       ))}
       <button className="btn sm" onClick={addEdu}>+ Add education</button>
+
+      <p className="section-title" style={{ marginTop: 20 }}>Key achievements</p>
+      <div className="field">
+        <textarea value={(p.achievements || []).join("\n")} onChange={(e) => set("achievements", e.target.value.split("\n").filter((x) => x.trim() !== ""))} placeholder="One achievement per line — awards, savings, projects delivered, targets exceeded…" />
+        <div className="hint">Concrete wins with numbers where you have them. One per line.</div>
+      </div>
+
+      <p className="section-title" style={{ marginTop: 20 }}>Projects</p>
+      {(p.projects || []).map((x, i) => (
+        <div className="card" key={i}>
+          <div className="field"><label>Project name</label><input value={x.name || ""} onChange={(e) => setProj(i, "name", e.target.value)} /></div>
+          <div className="field"><label>What you did</label><textarea value={x.description || ""} onChange={(e) => setProj(i, "description", e.target.value)} /></div>
+          <button className="btn ghost sm" onClick={() => rmProj(i)}>Remove</button>
+        </div>
+      ))}
+      <button className="btn sm" onClick={addProj}>+ Add project</button>
+
+      <p className="section-title" style={{ marginTop: 20 }}>Awards & honours</p>
+      {(p.awards || []).map((x, i) => (
+        <div className="card" key={i}>
+          <div className="grid2">
+            <div className="field"><label>Award</label><input value={x.name || ""} onChange={(e) => setAward(i, "name", e.target.value)} /></div>
+            <div className="field"><label>Year</label><input value={x.year || ""} onChange={(e) => setAward(i, "year", e.target.value)} /></div>
+          </div>
+          <div className="field"><label>Issuer</label><input value={x.issuer || ""} onChange={(e) => setAward(i, "issuer", e.target.value)} /></div>
+          <button className="btn ghost sm" onClick={() => rmAward(i)}>Remove</button>
+        </div>
+      ))}
+      <button className="btn sm" onClick={addAward}>+ Add award</button>
+
+      <p className="section-title" style={{ marginTop: 20 }}>Professional memberships</p>
+      <div className="field">
+        <input value={listToStr(p.memberships)} onChange={(e) => set("memberships", strToList(e.target.value))} placeholder="e.g. IEEE, Engineering Council (comma-separated)" />
+      </div>
 
       <p className="section-title" style={{ marginTop: 20 }}>Targets</p>
       <div className="field"><label>Target roles (comma-separated)</label><input value={listToStr(p.target_roles)} onChange={(e) => set("target_roles", strToList(e.target.value))} /></div>

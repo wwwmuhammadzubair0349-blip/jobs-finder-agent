@@ -8,6 +8,7 @@ const DEFAULT_PROFILE = {
   links: { linkedin: "", portfolio: "", github: "" },
   professional_summary: "", skills: [], tools: [], languages: [],
   experience: [], education: [], certifications: [],
+  achievements: [], projects: [], awards: [], memberships: [],
   target_roles: [], seniority: "mid", work_pref: "remote",
   min_salary: 0, willing_to_relocate: false,
 };

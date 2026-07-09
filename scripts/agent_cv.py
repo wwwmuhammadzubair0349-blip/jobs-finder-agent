@@ -28,22 +28,32 @@ from llm import is_configured
 from llm_json import llm_json
 from log_issue import log_issue
 
-_SYSTEM = """You are an expert technical CV writer and career coach.
-You tailor a candidate's EXISTING profile to a specific job. You are ATS-aware:
-you surface the job description's real keywords into the summary, skills, and
-experience bullets so applicant-tracking systems rank the CV highly.
+_SYSTEM = """You are a seasoned CV writer who makes each application sound like
+the CANDIDATE wrote it themselves — a real, competent human, not a machine.
+You tailor the candidate's EXISTING profile to a specific job and you are
+ATS-aware: you weave the job description's real keywords naturally into the
+summary, skills, and experience so applicant-tracking systems rank it highly.
 
-ABSOLUTE RULES:
+WRITE LIKE A HUMAN (very important):
+- Natural, plain, confident language. Vary sentence length. Sound like a real
+  professional talking about their own work — not a template.
+- BAN these AI/CV clichés and buzzwords: "leverage", "spearheaded", "passionate",
+  "dynamic", "results-driven", "synergy", "go-getter", "team player",
+  "detail-oriented" (unless truly earned), "utilize" (say "use"), "in today's
+  fast-paced world", "proven track record". Don't overuse em-dashes.
+- Prefer concrete specifics and real numbers the profile gives you over generic
+  adjectives. Show, don't boast.
+- The cover letter must read like a thoughtful person wrote it in one sitting:
+  warm but professional, specific to THIS company/role, no robotic symmetry, no
+  filler. Exactly 3 short paragraphs.
+
+ABSOLUTE HONESTY RULES:
 - Use ONLY facts present in the candidate profile JSON. Never invent employers,
-  job titles, dates, degrees, certifications, metrics, or skills not present.
-- You MAY rephrase, reorder, re-weight, and emphasise existing bullets, and you
-  MAY reword the summary, but the underlying facts must stay true.
-- If the job needs a skill the candidate lacks, do NOT claim it. Instead lean on
-  genuinely-related experience the candidate DOES have (transferable framing).
-- Keep it concise, confident, concrete. No clichés ("team player", "go-getter"),
-  no first-person fluff in the CV bullets (use strong action verbs).
-- The cover letter is exactly 3 short paragraphs, addressed to the company/role,
-  specific to this job, honest, and human."""
+  job titles, dates, degrees, certifications, metrics, projects, or skills.
+- You MAY rephrase, reorder, re-weight, and emphasise existing content, and you
+  MAY reword the summary — but every underlying fact must stay true.
+- If the job needs a skill the candidate lacks, do NOT claim it. Lean on
+  genuinely-related experience they DO have (honest transferable framing)."""
 
 _USER_TMPL = """CANDIDATE PROFILE (the ONLY source of truth):
 {profile}
@@ -60,8 +70,11 @@ Return a JSON object with EXACTLY these keys:
   "summary": "2-4 line professional summary rewritten for THIS role",
   "skills": ["reordered/prioritised skills, only from the profile's skills+tools"],
   "experience": [
-    {{"title","company","location","start","end","bullets":["rewritten, keyworded, truthful"]}}
+    {{"title","company","location","start","end","bullets":["rewritten, keyworded, truthful, human-sounding"]}}
   ],
+  "achievements": ["reordered/emphasised key achievements from the profile, most relevant first (only if profile has them)"],
+  "projects": [{{"name","description":"tightened, relevant description"}}],
+  "awards": [{{"name","issuer","year"}}],
   "education": [{{"degree","school","year"}}],
   "certifications": [{{"name","issuer","year"}}],
   "cover_letter": {{
@@ -82,6 +95,9 @@ def _fallback(job: dict, profile: dict) -> dict:
         "summary": profile.get("professional_summary", ""),
         "skills": (profile.get("skills", []) or []) + (profile.get("tools", []) or []),
         "experience": profile.get("experience", []),
+        "achievements": profile.get("achievements", []),
+        "projects": profile.get("projects", []),
+        "awards": profile.get("awards", []),
         "education": profile.get("education", []),
         "certifications": profile.get("certifications", []),
         "cover_letter": {
@@ -107,13 +123,58 @@ def _fallback(job: dict, profile: dict) -> dict:
     }
 
 
+import re as _re
+
+# Safe, case-preserving swaps for the most robotic AI/CV tells the model
+# sometimes ignores. Only 1:1 word/phrase swaps that never break grammar.
+_HUMANIZE = [
+    (r"\butiliz(e|es|ed|ing)\b", {"e": "use", "es": "uses", "ed": "used", "ing": "using"}),
+    (r"\butilis(e|es|ed|ing)\b", {"e": "use", "es": "uses", "ed": "used", "ing": "using"}),
+    (r"\bleverag(e|es|ed|ing)\b", {"e": "use", "es": "uses", "ed": "used", "ing": "using"}),
+    (r"\bspearhead(ed|ing|s)?\b", {None: "lead", "ed": "led", "ing": "leading", "s": "leads"}),
+]
+_SIMPLE = [
+    ("proven track record of", "history of"),
+    ("in today's fast-paced world", ""),
+    ("results-driven ", ""),
+    ("I am excited to apply", "I am writing to apply"),
+]
+
+
+def _humanize(text):
+    if not isinstance(text, str) or not text:
+        return text
+    for pat, table in _HUMANIZE:
+        rx = _re.compile(pat, _re.IGNORECASE)
+        def sub(m, t=table):
+            suf = m.group(1) if m.lastindex else None
+            r = t.get(suf, t.get(None, m.group(0)))
+            return r[:1].upper() + r[1:] if m.group(0)[:1].isupper() else r
+        text = rx.sub(sub, text)
+    for a, b in _SIMPLE:
+        text = _re.sub(_re.escape(a), b, text, flags=_re.IGNORECASE)
+    return _re.sub(r"\s{2,}", " ", text).strip()
+
+
+def _humanize_all(cv: dict) -> dict:
+    cv["summary"] = _humanize(cv.get("summary", ""))
+    for e in cv.get("experience", []) or []:
+        e["bullets"] = [_humanize(b) for b in (e.get("bullets") or [])]
+    cv["achievements"] = [_humanize(a) for a in (cv.get("achievements") or [])]
+    cl = cv.get("cover_letter") or {}
+    cl["paragraphs"] = [_humanize(p) for p in (cl.get("paragraphs") or [])]
+    cv["cover_letter"] = cl
+    return cv
+
+
 def _sanitise(data: dict, job: dict, profile: dict) -> dict:
     """Guard against the model dropping keys or hallucinating structure."""
     base = _fallback(job, profile)
     if not isinstance(data, dict):
         return base
     out = dict(base)
-    for key in ("summary", "skills", "experience", "education", "certifications", "keywords", "apply_steps"):
+    for key in ("summary", "skills", "experience", "achievements", "projects", "awards",
+                "education", "certifications", "keywords", "apply_steps"):
         if data.get(key):
             out[key] = data[key]
     cl = data.get("cover_letter")
@@ -139,11 +200,11 @@ def tailor(job: dict, profile: dict) -> dict:
         description=(job.get("description", "") or "")[:4000],
     )
     try:
-        data = llm_json(_SYSTEM, user, max_tokens=2600, temperature=0.35)
-        return _sanitise(data, job, profile)
+        data = llm_json(_SYSTEM, user, max_tokens=2600, temperature=0.4)
+        return _humanize_all(_sanitise(data, job, profile))
     except Exception as exc:
         log_issue("agent_cv", f"tailor failed for {job.get('title')}: {exc}", "error")
-        return _fallback(job, profile)
+        return _humanize_all(_fallback(job, profile))
 
 
 if __name__ == "__main__":

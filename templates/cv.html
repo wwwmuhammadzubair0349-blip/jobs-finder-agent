@@ -107,6 +107,27 @@
   </section>
   {% endif %}
 
+  {% if cv.achievements %}
+  <section>
+    <h2>Key Achievements</h2>
+    <ul class="bullets">
+      {% for a in cv.achievements %}<li>{{ a }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if cv.projects %}
+  <section>
+    <h2>Projects</h2>
+    {% for pr in cv.projects %}
+    <div class="job">
+      <div class="job-title">{{ pr.name }}</div>
+      {% if pr.description %}<div>{{ pr.description }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   <div class="two-col">
     {% if cv.education %}
     <div>
@@ -136,6 +157,25 @@
     </div>
     {% endif %}
   </div>
+
+  {% if cv.awards %}
+  <section>
+    <h2>Awards &amp; Honours</h2>
+    {% for a in cv.awards %}
+    <div class="cert-row">
+      <span>{{ a.name }}{% if a.issuer %} — {{ a.issuer }}{% endif %}</span>
+      <span class="muted">{{ a.year }}</span>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if profile.memberships %}
+  <section>
+    <h2>Professional Memberships</h2>
+    <p class="muted">{{ profile.memberships | join('  ·  ') }}</p>
+  </section>
+  {% endif %}
 
   {% if profile.languages %}
   <section>

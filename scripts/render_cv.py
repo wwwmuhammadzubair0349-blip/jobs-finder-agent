@@ -91,11 +91,32 @@ def _plain_text_cv(cv_data: dict, profile: dict) -> str:
                 lines.append(f"- {b}")
             lines.append("")
 
+    if cv_data.get("achievements"):
+        lines.append("KEY ACHIEVEMENTS")
+        for a in cv_data["achievements"]:
+            lines.append(f"- {a}")
+        lines.append("")
+
+    if cv_data.get("projects"):
+        lines.append("PROJECTS")
+        for pr in cv_data["projects"]:
+            lines.append(f"{pr.get('name','')}: {pr.get('description','')}".strip(": "))
+        lines.append("")
+
     if cv_data.get("education"):
         lines.append("EDUCATION")
         for e in cv_data["education"]:
             lines.append(f"{e.get('degree','')}, {e.get('school','')} ({e.get('year','')})")
         lines.append("")
+
+    if cv_data.get("awards"):
+        lines.append("AWARDS & HONOURS")
+        for a in cv_data["awards"]:
+            lines.append(f"{a.get('name','')} — {a.get('issuer','')} ({a.get('year','')})")
+        lines.append("")
+
+    if profile.get("memberships"):
+        lines += ["PROFESSIONAL MEMBERSHIPS", ", ".join(profile["memberships"]), ""]
 
     if cv_data.get("certifications"):
         lines.append("CERTIFICATIONS")
