@@ -68,8 +68,20 @@ def _rotation_key() -> str:
     return ROTATION[hour % len(ROTATION)]
 
 
+CMB_PHONE = os.getenv("CALLMEBOT_PHONE", "").strip()
+CMB_KEY = os.getenv("CALLMEBOT_APIKEY", "").strip()
+
+
+def job_link(j: dict) -> str:
+    """Channel links go to OUR job landing pages (brand + SEO + signup CTA),
+    falling back to the raw apply URL only if a job has no slug."""
+    if j.get("slug"):
+        return f"{JOIN_URL}/jobs/{j['slug']}"
+    return j.get("url", "")
+
+
 def pick_diverse_jobs(n: int) -> list[dict]:
-    rows = query("SELECT title, company, location, salary, url FROM job_pool WHERE url != '' ORDER BY discovered_at DESC LIMIT 400")
+    rows = query("SELECT title, company, location, salary, url, slug FROM job_pool WHERE url != '' ORDER BY discovered_at DESC LIMIT 400")
     random.shuffle(rows)
     seen, out = set(), []
     for r in rows:
@@ -117,7 +129,7 @@ def content_jobs() -> str:
     for j in jobs:
         t = html.escape((j.get("title") or "")[:60]); co = html.escape((j.get("company") or "")[:38])
         loc = html.escape((j.get("location") or "")[:28]); sal = f" · 💰 {html.escape(j['salary'])}" if j.get("salary") else ""
-        lines.append(f"▸ <a href=\"{html.escape(j.get('url',''), quote=True)}\">{t}</a>\n   <i>{co}</i> · {loc}{sal}")
+        lines.append(f"▸ <a href=\"{html.escape(job_link(j), quote=True)}\">{t}</a>\n   <i>{co}</i> · {loc}{sal}")
     lines.append(f"{RULE}\n🎯 Want these <b>tailored to you</b> with an auto-written CV + cover letter for each? Start below 👇")
     return "\n".join(lines) + _react_line()
 
@@ -134,7 +146,7 @@ def content_role_spotlight() -> str:
     lines = [f"🌟 <b>Roles worth a look</b>\n{RULE}"]
     for j in jobs:
         t = html.escape((j.get("title") or "")[:60]); co = html.escape((j.get("company") or "")[:38])
-        lines.append(f"• <a href=\"{html.escape(j.get('url',''), quote=True)}\">{t}</a> — <i>{co}</i>")
+        lines.append(f"• <a href=\"{html.escape(job_link(j), quote=True)}\">{t}</a> — <i>{co}</i>")
     lines.append(f"{RULE}\nWe find hundreds like these daily and match them to YOU. Start free 👇")
     return "\n".join(lines) + _react_line()
 
@@ -145,6 +157,39 @@ def _footer() -> str:
             f"{JOIN_URL}")
 
 
+# --------------------------------------------------------------------------- #
+# WhatsApp DM (CallMeBot): sends the same digest to the owner's WhatsApp so   #
+# they can forward it to their WhatsApp Channel in one tap.                   #
+# --------------------------------------------------------------------------- #
+def to_whatsapp(html_text: str) -> str:
+    """Telegram-HTML → WhatsApp plain text (*bold*, _italic_, bare links)."""
+    import re
+    t = html_text
+    t = re.sub(r'<a href="([^"]+)">([^<]*)</a>', lambda m: f"{m.group(2)}\n{m.group(1)}", t)
+    t = t.replace("<b>", "*").replace("</b>", "*")
+    t = t.replace("<i>", "_").replace("</i>", "_")
+    t = re.sub(r"<[^>]+>", "", t)
+    t = html.unescape(t)
+    return t.strip()
+
+
+def send_whatsapp(text: str) -> bool:
+    if not (CMB_PHONE and CMB_KEY):
+        return False
+    try:
+        r = requests.get(
+            "https://api.callmebot.com/whatsapp.php",
+            params={"phone": CMB_PHONE, "text": text[:1900], "apikey": CMB_KEY},
+            timeout=60,
+        )
+        ok = r.status_code < 400
+        print(f"[whatsapp] callmebot HTTP {r.status_code}")
+        return ok
+    except Exception as exc:
+        print("[whatsapp] failed:", exc)
+        return False
+
+
 def main() -> None:
     kind = _rotation_key()
     if kind == "jobs":
@@ -153,7 +198,10 @@ def main() -> None:
         text = content_role_spotlight()
     else:
         text = content_tip(kind)
-    send(text + _footer())
+    full = text + _footer()
+    send(full)
+    # Mirror to the owner's WhatsApp (forward-ready for the WhatsApp Channel).
+    send_whatsapp("📢 Forward to your WhatsApp Channel:\n\n" + to_whatsapp(full))
     print(f"channel: posted '{kind}'")
 
 

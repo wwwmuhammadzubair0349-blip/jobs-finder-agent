@@ -25,6 +25,8 @@ jobs:
       TELEGRAM_CHANNEL: ${{ secrets.TELEGRAM_CHANNEL }}
       DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
       BOT_USERNAME: ${{ secrets.BOT_USERNAME }}
+      CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+      CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
       CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
