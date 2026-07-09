@@ -137,6 +137,10 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       </div>
 
       <nav className="tabbar">
+        <div className="side-brand">
+          <span className="brand-badge">JF</span>
+          <span className="side-brand-word">Jobs Finder<span style={{ color: "var(--accent)" }}>.</span></span>
+        </div>
         {(me.admin ? [...TABS, { id: "admin", label: "Admin", icon: IconProfile }] : TABS).map((t) => (
           <button key={t.id} className={`tab ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)} style={{ position: "relative" }}>
             <t.icon />
@@ -352,7 +356,7 @@ function ConnectCard({ me, reloadMe }) {
         <span style={{ fontSize: 20 }}>✅</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 650 }}>Telegram connected</div>
-          <div className="hint">Jobs bot ✓ &nbsp;·&nbsp; Interview-prep bot ✓ — both linked. Open @interview_prep_coach_bot and press Start to use interview prep.</div>
+          <div className="hint">Jobs, CVs & interview prep arrive on your phone.</div>
         </div>
       </div>
     );
@@ -362,14 +366,13 @@ function ConnectCard({ me, reloadMe }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 18 }}>🔌</span><span style={{ fontWeight: 650 }}>Telegram not connected</span>
       </div>
-      <div className="hint" style={{ margin: "6px 0 10px" }}>Send this code to the Jobs bot — it links the Interview-prep bot (and any future bots) automatically:</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="hint" style={{ margin: "6px 0 10px" }}>Open our Jobs bot and send it this code — everything connects with that one code:</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <div className="code-chip">{u.connection_code || "—"}</div>
         <button className="btn sm" onClick={copyCode}>{copied ? "✓ Copied" : "📋 Copy"}</button>
       </div>
       <div className="row-actions" style={{ marginTop: 10 }}>
-        <a className="btn primary sm" href="https://t.me/jobs_finder_agent_bot" target="_blank" rel="noreferrer">Open Jobs bot</a>
-        <a className="btn sm" href="https://t.me/interview_prep_coach_bot" target="_blank" rel="noreferrer">Interview bot</a>
+        <a className="btn primary sm" href="https://t.me/jobs_finder_agent_bot" target="_blank" rel="noreferrer">✈ Open Jobs bot</a>
         <button className="btn ghost sm" onClick={regen} disabled={busy}>New code</button>
       </div>
     </div>
