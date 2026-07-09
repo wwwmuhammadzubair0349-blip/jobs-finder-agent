@@ -11,13 +11,13 @@ export async function onRequestGet(context) {
   const rows = await all(env,
     `SELECT uj.id, uj.job_id, uj.match_score, uj.why, uj.status, uj.first_seen, uj.sent_at, uj.applied_at,
             uj.cv_key, uj.cover_key, uj.cv_txt_key,
-            jp.title, jp.company, jp.location, jp.remote, jp.salary, jp.posted_at, jp.url, jp.source, jp.description
+            jp.title, jp.company, jp.location, jp.remote, jp.salary, jp.posted_at, jp.url, jp.source, jp.description, jp.slug
        FROM user_jobs uj JOIN job_pool jp ON jp.id = uj.job_id
       WHERE uj.user_id = ?
       ORDER BY uj.first_seen DESC LIMIT 500`, uid);
 
   const jobs = rows.map((r) => ({
-    id: r.job_id, uj_id: r.id, title: r.title, company: r.company, location: r.location,
+    id: r.job_id, uj_id: r.id, slug: r.slug, title: r.title, company: r.company, location: r.location,
     remote: !!r.remote, salary: r.salary, posted_at: r.posted_at, url: r.url, source: r.source,
     description: r.description, match_score: r.match_score, why: r.why, status: r.status,
     first_seen: r.first_seen, sent_at: r.sent_at, applied_at: r.applied_at,

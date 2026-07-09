@@ -5,7 +5,7 @@ const STEPS = [
   { emoji: "🧑‍💼", title: "1. Profile — your CV facts", text: "Fill in your real experience, skills, achievements and more. This is the single source of truth every CV is built from. The more you add, the better your matches." },
   { emoji: "🔍", title: "2. Search — what to look for", text: "Set your job titles, the countries you want (add as many as you like), and keywords. This tells the agents exactly what to hunt for." },
   { emoji: "🏠", title: "3. Today — your command center", text: "See live stats, watch your agents work in real time, and browse fresh matches. Tap a stat (Applied, Interviews…) to filter." },
-  { emoji: "📋", title: "4. All jobs", text: "Every job we've found, saved forever. Hit “Send to Telegram” on any job to instantly get its tailored CV + cover letter + how-to-apply steps." },
+  { emoji: "📋", title: "4. My jobs & All jobs", text: "My jobs = roles matched to YOU — hit “Send to Telegram” on any for its tailored CV + cover letter. All jobs = everything we've discovered across all searches, browsable and shareable." },
   { emoji: "✅", title: "5. Applications", text: "Track each role: Saved → Applied → Interview → Offer. Tap “✅ Applied” on any Telegram job and it updates here automatically." },
   { emoji: "⏰", title: "6. Schedule", text: "Choose how often we check and set quiet hours so you're not pinged overnight. Your timezone is detected automatically." },
   { emoji: "✈️", title: "7. Connect Telegram", text: "On the Today tab, copy your code and send it to our Jobs bot and Interview-prep bot. That's how your jobs and CVs reach your phone." },

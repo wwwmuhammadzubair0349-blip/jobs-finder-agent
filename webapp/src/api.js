@@ -17,6 +17,7 @@ export const api = {
   login: (email, password, remember = true) => req("/login", { method: "POST", body: JSON.stringify({ email, password, remember }) }),
   logout: () => req("/logout", { method: "POST" }),
   data: () => req("/data"),
+  pool: (q = "", slug = "") => req(`/pool?q=${encodeURIComponent(q)}&slug=${encodeURIComponent(slug)}`),
   getConfig: () => req("/config"),
   saveConfig: (section, data) => req("/config", { method: "POST", body: JSON.stringify({ section, data }) }),
   setApplication: (entry) => req("/application", { method: "POST", body: JSON.stringify(entry) }),

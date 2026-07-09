@@ -12,3 +12,4 @@ export const IconRefresh = (p) => (<svg {...s} {...p}><path d="M4 12a8 8 0 0 1 1
 export const IconOut = (p) => (<svg {...s} {...p}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>);
 export const IconExt = (p) => (<svg {...s} {...p} width="15" height="15"><path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>);
 export const IconSun = (p) => (<svg {...s} {...p} width="18" height="18"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>);
+export const IconGlobe = (p) => (<svg {...s} {...p}><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.6 3 14.4 0 18M12 3c-3 3.6-3 14.4 0 18"/></svg>);

@@ -32,7 +32,7 @@ export function ScoreRing({ score }) {
 
 const STATUSES = ["saved", "applied", "interview", "rejected", "offer"];
 
-export function JobCard({ job, appStatus, onStatus, onSend }) {
+export function JobCard({ job, appStatus, onStatus, onSend, onShare }) {
   const url = job.url;
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
@@ -66,6 +66,7 @@ export function JobCard({ job, appStatus, onStatus, onSend }) {
       <div className="row-actions">
         {url && <a className="btn primary sm" href={url} target="_blank" rel="noreferrer">Apply <IconExt /></a>}
         {onSend && <button className="btn sm" onClick={send} disabled={sending || sent}>{sent ? "✓ Sent" : sending ? "Sending…" : "✈ Send to Telegram"}</button>}
+        {onShare && job.slug && <button className="btn sm" onClick={() => onShare(job)}>🔗 Share</button>}
         {job.cv_url && <a className="btn sm" href={job.cv_url} target="_blank" rel="noreferrer">CV</a>}
         {job.cover_url && <a className="btn sm" href={job.cover_url} target="_blank" rel="noreferrer">Cover</a>}
         {onStatus && (

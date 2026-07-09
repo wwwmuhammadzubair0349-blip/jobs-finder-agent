@@ -38,11 +38,21 @@ def user_config(user_id: str) -> dict:
 # --------------------------------------------------------------------------- #
 # Shared job pool                                                             #
 # --------------------------------------------------------------------------- #
-def upsert_pool_jobs(jobs: list[dict], ttl_days: int = 30, chunk: int = 7) -> None:
-    # D1 caps bound parameters at 100/query → 7 rows x 14 cols = 98.
+import re as _re
+
+
+def job_slug(title: str, company: str, jid: str) -> str:
+    """SEO slug: electrical-engineer-at-bgis-a1b2c3d4 (unique via id suffix)."""
+    base = _re.sub(r"[^a-z0-9]+", "-", f"{title}-at-{company}".lower()).strip("-")[:70]
+    suf = _re.sub(r"[^a-z0-9]", "", (jid.split(":")[-1] or "x").lower())[:8]
+    return f"{base}-{suf}"
+
+
+def upsert_pool_jobs(jobs: list[dict], ttl_days: int = 30, chunk: int = 6) -> None:
+    # D1 caps bound parameters at 100/query → 6 rows x 15 cols = 90.
     now = _now()
     expires = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(days=ttl_days)).isoformat(timespec="seconds")
-    cols = 14
+    cols = 15
     for i in range(0, len(jobs), chunk):
         part = jobs[i:i + chunk]
         placeholders = ",".join(["(" + ",".join(["?"] * cols) + ")"] * len(part))
@@ -52,13 +62,15 @@ def upsert_pool_jobs(jobs: list[dict], ttl_days: int = 30, chunk: int = 7) -> No
                 j["id"], j.get("source", ""), j.get("title", ""), j.get("company", ""), j.get("location", ""),
                 1 if j.get("remote") else 0, j.get("salary", ""), j.get("posted_at", ""), j.get("url", ""),
                 (j.get("description", "") or "")[:1500], j.get("category", ""), j.get("country", ""), now, expires,
+                job_slug(j.get("title", ""), j.get("company", ""), j["id"]),
             ]
         execute(
-            "INSERT INTO job_pool (id, source, title, company, location, remote, salary, posted_at, url, description, category, country, discovered_at, expires_at) "
+            "INSERT INTO job_pool (id, source, title, company, location, remote, salary, posted_at, url, description, category, country, discovered_at, expires_at, slug) "
             f"VALUES {placeholders} "
             "ON CONFLICT(id) DO UPDATE SET salary=excluded.salary, title=excluded.title, "
             "company=excluded.company, location=excluded.location, remote=excluded.remote, "
-            "description=excluded.description, discovered_at=excluded.discovered_at, expires_at=excluded.expires_at",
+            "description=excluded.description, discovered_at=excluded.discovered_at, "
+            "expires_at=excluded.expires_at, slug=excluded.slug",
             params,
         )
 

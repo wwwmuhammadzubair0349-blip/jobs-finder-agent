@@ -4,11 +4,12 @@ import Login from "./Login";
 import Tour from "./Tour";
 import { Kpi, JobCard, Empty } from "./parts";
 import { ProfileEditor, SearchEditor, ScheduleEditor } from "./Editors";
-import { IconToday, IconJobs, IconApps, IconProfile, IconSearch, IconClock, IconAlert, IconRun, IconRefresh, IconOut, IconSun } from "./icons";
+import { IconToday, IconJobs, IconApps, IconProfile, IconSearch, IconClock, IconAlert, IconRun, IconRefresh, IconOut, IconSun, IconGlobe } from "./icons";
 
 const TABS = [
   { id: "today", label: "Today", icon: IconToday },
-  { id: "jobs", label: "All jobs", icon: IconJobs },
+  { id: "jobs", label: "My jobs", icon: IconJobs },
+  { id: "pool", label: "All jobs", icon: IconGlobe },
   { id: "apps", label: "Applications", icon: IconApps },
   { id: "profile", label: "Profile", icon: IconProfile },
   { id: "search", label: "Search", icon: IconSearch },
@@ -50,6 +51,11 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const pollRef = useRef(null);
   const lastJson = useRef("");
   const complete = isProfileComplete(config);
+  // Deep link: /?job=<slug> → open All jobs focused on that job.
+  const [targetSlug, setTargetSlug] = useState(() => new URLSearchParams(window.location.search).get("job") || "");
+  useEffect(() => {
+    if (targetSlug) { setTab("pool"); window.history.replaceState({}, "", "/"); }
+  }, []); // eslint-disable-line
 
   const load = useCallback(async () => {
     try {
@@ -104,6 +110,15 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
     flash("Queued → preparing CV & sending to Telegram");
   }
 
+  async function shareJob(job) {
+    if (!job.slug) return;
+    const url = `${window.location.origin}/jobs/${job.slug}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: `${job.title} at ${job.company}`, url }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(url); flash("Job link copied 🔗"); } catch {}
+  }
+
   const issues = data?.issues || [];
   const errCount = issues.filter((i) => i.level === "error" && withinHours(i.at, 48)).length;
 
@@ -129,9 +144,10 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
-        {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
+        {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
+        {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
         {tab === "apps" && <Applications data={data} />}
         {tab === "profile" && (config ? <ProfileEditor key="p" initial={config.profile} onSave={saveConfig} /> : <Loading />)}
         {tab === "search" && (config ? <SearchEditor key="s" initial={config.search} onSave={saveConfig} /> : <Loading />)}
@@ -327,7 +343,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
   );
 }
 
-function Today({ me, data, onApp, onSend, reloadMe, complete, goProfile, onRun }) {
+function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile, onRun }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -375,7 +391,7 @@ function Today({ me, data, onApp, onSend, reloadMe, complete, goProfile, onRun }
             : (filter === "today" || filter === "total")
               ? <HuntingCta onRun={onRun} />
               : <Empty icon="🗂" title={`No ${titleMap[filter].toLowerCase()} yet`} sub="Tap another stat above." />)
-        : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />)}</div>}
+        : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} />)}</div>}
     </div>
   );
 }
@@ -486,7 +502,7 @@ function AdminPanel({ reloadMe, flash }) {
 }
 
 /* ---------------- All jobs ---------------- */
-function AllJobs({ data, onApp, onSend, complete, goProfile, onRun }) {
+function AllJobs({ data, onApp, onSend, onShare, complete, goProfile, onRun }) {
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState(null);
   if (!data) return <Loading />;
@@ -522,7 +538,7 @@ function AllJobs({ data, onApp, onSend, complete, goProfile, onRun }) {
         <div className="job-list">
           {filtered.map((j) => (
             <div key={j.id || j.url} onClick={(e) => { if (!["A", "SELECT", "OPTION", "BUTTON"].includes(e.target.tagName)) setDetail(j); }}>
-              <JobCard job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} />
+              <JobCard job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} />
             </div>
           ))}
         </div>}
@@ -530,6 +546,64 @@ function AllJobs({ data, onApp, onSend, complete, goProfile, onRun }) {
     </div>
   );
 }
+
+/* ---------------- All jobs (global pool) ---------------- */
+function PoolTab({ targetSlug, clearTarget, onShare }) {
+  const [jobs, setJobs] = useState(null);
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const r = await api.pool();
+        let list = r.jobs || [];
+        if (targetSlug) {
+          let hit = list.find((j) => j.slug === targetSlug);
+          if (!hit) {
+            const single = await api.pool("", targetSlug);
+            hit = (single.jobs || [])[0];
+            if (hit) list = [hit, ...list];
+          } else {
+            list = [hit, ...list.filter((j) => j.slug !== targetSlug)];
+          }
+        }
+        if (live) setJobs(list);
+      } catch { if (live) setJobs([]); }
+    })();
+    return () => { live = false; };
+  }, [targetSlug]);
+
+  if (!jobs) return <Loading />;
+  const filtered = jobs.filter((j) => `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <div className="fade">
+      <div className="field"><input placeholder="Search all discovered jobs…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+      <p className="section-title">Every job we've discovered · {filtered.length}</p>
+      {filtered.length === 0 ? <Empty icon="🌍" title="Nothing found" sub="Try a different search." /> :
+        <div className="job-list">
+          {filtered.map((j) => (
+            <div key={j.id} className="card" style={j.slug === targetSlug ? { borderColor: "var(--accent)", boxShadow: "0 0 0 3px var(--accent-weak)" } : {}}>
+              {j.slug === targetSlug && <div className="tag" style={{ marginBottom: 8, color: "var(--accent)", borderColor: "var(--accent)" }}>🔗 Shared job</div>}
+              <div className="job-title">{j.title}</div>
+              <div className="job-sub">{j.company}{j.location ? ` · ${j.location}` : ""}</div>
+              <div className="job-meta">
+                {j.remote && <span className="tag remote">🌍 Remote</span>}
+                {j.salary && <span className="tag">💰 {j.salary}</span>}
+                {j.source && <span className="tag">{j.source}</span>}
+              </div>
+              {j.description && <div className="hint" style={{ margin: "4px 0 8px" }}>{j.description.slice(0, 150)}…</div>}
+              <div className="row-actions">
+                {j.url && <a className="btn primary sm" href={j.url} target="_blank" rel="noreferrer">Apply <IconExtMini /></a>}
+                <button className="btn sm" onClick={() => onShare(j)}>🔗 Share</button>
+              </div>
+            </div>
+          ))}
+        </div>}
+    </div>
+  );
+}
+const IconExtMini = () => (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>);
 
 function JobModal({ job, onClose }) {
   return (
