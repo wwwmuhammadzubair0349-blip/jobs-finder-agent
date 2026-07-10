@@ -4,6 +4,7 @@ import Login from "./Login";
 import Tour from "./Tour";
 import { Kpi, JobCard, Empty } from "./parts";
 import { ProfileEditor, SearchEditor, ScheduleEditor, AutoApplyEditor } from "./Editors";
+import { PlanBadge, UsageMeters, PricingModal } from "./Billing";
 import { IconToday, IconJobs, IconApps, IconProfile, IconSearch, IconClock, IconAlert, IconRun, IconRefresh, IconOut, IconSun, IconGlobe } from "./icons";
 
 const TABS = [
@@ -44,6 +45,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [config, setConfig] = useState(null);
   const [toast, setToast] = useState("");
   const [running, setRunning] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("jf_tour_done"));
   // Profile popup shows once per session — the in-page CTAs carry it after that.
   const [nagDismissed, setNagDismissed] = useState(() => !!sessionStorage.getItem("jf_nag_done"));
@@ -128,6 +130,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         <span className="brand"><span className="brand-badge">JF</span>Jobs Finder<span className="dot">.</span></span>
         <RunState latest={data?.latest_run} />
         <span className="spacer" />
+        {data?.plan && <PlanBadge plan={data.plan} onClick={() => setShowPricing(true)} />}
         <button className="icon-btn" title="Run now" onClick={runNow} disabled={running}><IconRun /></button>
         <button className="icon-btn" title="Refresh" onClick={load}><IconRefresh /></button>
         <button className="icon-btn" title="Theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><IconSun /></button>
@@ -144,7 +147,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
         {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
@@ -167,6 +170,14 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
           </button>
         ))}
       </nav>
+
+      {showPricing && (
+        <PricingModal
+          currentId={data?.plan?.id || "free"}
+          onClose={() => setShowPricing(false)}
+          onChoose={(id) => { setShowPricing(false); flash("Secure checkout is coming in the next update ✨"); }}
+        />
+      )}
 
       {showTour && <Tour onDone={finishTour} />}
 
@@ -345,7 +356,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
   );
 }
 
-function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile, onRun }) {
+function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile, onRun, onUpgrade }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -384,6 +395,8 @@ function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile
       </div>
 
       <SetupChecklist complete={complete} telegram={me.user?.telegram_connected} goProfile={goProfile} />
+
+      {data.plan && <UsageMeters plan={data.plan} onOpen={onUpgrade} />}
 
       <ConnectCard me={me} reloadMe={reloadMe} />
 

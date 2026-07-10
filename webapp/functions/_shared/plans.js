@@ -85,6 +85,18 @@ export async function consume(env, userId, plan, metric, tz = "UTC") {
   return true;
 }
 
+// Per-metric usage snapshot for the dashboard meters.
+export async function usageSummary(env, userId, plan, tz = "UTC") {
+  const metrics = ["notif", "autoapply", "cvprep", "interview"];
+  const out = {};
+  for (const m of metrics) {
+    const { limit, period } = metricLimit(plan, m);
+    const used = await usageCount(env, userId, m, periodKey(period, tz));
+    out[m] = { used, limit, remaining: Math.max(0, limit - used), period, unlimited: limit >= UNLIMITED };
+  }
+  return out;
+}
+
 // The user's IANA timezone from their saved settings (falls back to UTC).
 export async function userTimezone(env, userId) {
   try {

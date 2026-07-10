@@ -503,6 +503,54 @@ select.status {
   .modal { padding: 16px 14px; }
 }
 
+/* ---- Plans: badge, usage meters, pricing ------------------------------------- */
+.plan-badge {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; padding: 5px 11px; border-radius: 999px;
+  color: var(--ink); background: var(--accent-weak);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--hair));
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.plan-badge:hover { transform: translateY(-1px); box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 22%, transparent); }
+@media (max-width: 560px) { .plan-badge-name { display: none; } }
+
+.meters { display: grid; gap: 12px; margin-top: 12px; }
+.meter-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.meter-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.meter-count { font-size: 12.5px; font-weight: 700; font-family: var(--num); }
+.meter .bar-track { height: 9px; }
+
+/* Pricing modal */
+.modal.pricing { max-width: 940px; }
+.pricing-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 14px; }
+@media (min-width: 620px) { .pricing-grid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 940px) { .pricing-grid { grid-template-columns: repeat(4, 1fr); } }
+.price-card {
+  position: relative; background: var(--surface); border: 1px solid var(--hair);
+  border-radius: var(--radius); padding: 16px 15px; display: flex; flex-direction: column; gap: 10px;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+@media (hover: hover) { .price-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); } }
+.price-card.popular { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-weak); }
+.price-card.current { border-color: var(--ok); }
+.price-flag {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  background: var(--grad); color: #fff; font-size: 10.5px; font-weight: 700;
+  padding: 3px 10px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.3px;
+}
+.price-head { display: flex; align-items: center; gap: 8px; }
+.price-emoji { font-size: 20px; }
+.price-name { font-family: var(--display); font-weight: 700; font-size: 17px; }
+.price-amount { display: flex; align-items: baseline; gap: 2px; }
+.price-cur { font-size: 16px; font-weight: 700; color: var(--ink-2); }
+.price-num { font-family: var(--display); font-size: 32px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+.price-per { font-size: 13px; color: var(--muted); }
+.price-free { font-family: var(--display); font-size: 26px; font-weight: 800; }
+.price-tag { font-size: 12.5px; color: var(--muted); }
+.price-feats { list-style: none; padding: 0; margin: 4px 0 12px; display: grid; gap: 7px; flex: 1; }
+.price-feats li { font-size: 13px; color: var(--ink-2); display: flex; align-items: flex-start; gap: 7px; }
+.price-feats .tick { color: var(--ok); font-weight: 800; flex: none; }
+
 /* ---- 2K / 4K scaling: crisp at any resolution ---------------------------------------------------- */
 @media (min-width: 2200px) { body { zoom: 1.25; } }
 @media (min-width: 3200px) { body { zoom: 1.6; } }
