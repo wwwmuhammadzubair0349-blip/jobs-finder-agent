@@ -106,6 +106,12 @@ def queued_user_jobs(user_id: str) -> list[dict]:
             WHERE uj.user_id = ? AND uj.status = 'queued'""", [user_id])
 
 
+def set_job_status(user_id: str, job_id: str, status: str) -> None:
+    """Set a user_job's status unless it's already applied (don't downgrade)."""
+    execute("UPDATE user_jobs SET status=? WHERE user_id=? AND job_id=? AND status != 'applied'",
+            [status, user_id, job_id])
+
+
 def mark_sent(uj_id: str, cv_key: str, cover_key: str, cv_txt_key: str) -> None:
     execute(
         "UPDATE user_jobs SET status = CASE WHEN status='applied' THEN 'applied' ELSE 'sent' END, sent_at = ?, cv_key = ?, cover_key = ?, cv_txt_key = ? WHERE id = ?",

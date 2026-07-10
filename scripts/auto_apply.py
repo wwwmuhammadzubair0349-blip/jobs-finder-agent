@@ -28,6 +28,24 @@ _EMAIL_BLACKLIST = re.compile(
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 _APPLY_HINTS = re.compile(r"(send|submit|forward|email|share|apply|cv|resume|c\.v)", re.I)
 
+# Sites we must NOT auto-submit to (ban risk) — instead we prepare everything
+# and send a one-tap "ready to apply" message (semi-auto / Option A).
+_SEMI_AUTO = {
+    "linkedin.com": "LinkedIn",
+    "indeed.": "Indeed",
+    "glassdoor.": "Glassdoor",
+    "bayt.com": "Bayt",
+    "naukrigulf.com": "Naukrigulf",
+}
+
+
+def semi_auto_site(url: str) -> str | None:
+    u = (url or "").lower()
+    for frag, name in _SEMI_AUTO.items():
+        if frag in u:
+            return name
+    return None
+
 
 def find_apply_email(description: str) -> str | None:
     """Return the most likely application email in a JD, or None."""

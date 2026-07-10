@@ -37,6 +37,7 @@ export function JobCard({ job, appStatus, onStatus, onSend, onShare }) {
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
   const applied = job.status === "applied" || appStatus === "applied";
+  const ready = job.status === "ready" && !applied;
 
   async function send() {
     if (!onSend) return;
@@ -48,7 +49,7 @@ export function JobCard({ job, appStatus, onStatus, onSend, onShare }) {
     <div className="card fade">
       <div className="job-top">
         <div>
-          <div className="job-title">{job.title} {applied && <span className="tag" style={{ color: "var(--ok)", borderColor: "var(--ok)" }}>✓ Applied</span>}</div>
+          <div className="job-title">{job.title} {applied && <span className="tag" style={{ color: "var(--ok)", borderColor: "var(--ok)" }}>✓ Applied</span>}{ready && <span className="tag" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>🎯 Ready to apply</span>}</div>
           <div className="job-sub">{job.company}{job.location ? ` · ${job.location}` : ""}</div>
         </div>
         {job.match_score != null && <ScoreRing score={job.match_score} />}

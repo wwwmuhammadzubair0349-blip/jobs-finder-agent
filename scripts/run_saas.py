@@ -277,19 +277,35 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
 
 
 def _try_apply(u, settings, profile, job, cv_data, result, chat_id):
-    """Attempt guarded auto-apply; report via the user's Telegram."""
+    """Guarded auto-apply. Full-auto (email/ATS form) when safe; otherwise
+    semi-auto 'ready to apply' for LinkedIn/Indeed etc. Reports via Telegram."""
+    if not chat_id:
+        return
     try:
-        from auto_apply import try_auto_apply
-        from send_telegram import send_message
+        from auto_apply import try_auto_apply, get_auto_settings, semi_auto_site
+        from send_telegram import send_message, send_ready_to_apply
+        from saas_store import user_agents_update, set_job_status
+
+        aa = get_auto_settings(settings)
+        if not aa["enabled"]:
+            return
         set_activity("applicant", "auto-applying", job.get("title", ""))
 
         def notify(text):
-            if chat_id:
-                send_message(text, chat_id=chat_id)
+            send_message(text, chat_id=chat_id)
 
+        # 1) Full auto — email / ATS form (safe, submitted for the user)
         if try_auto_apply(u, settings, profile, job, cv_data, result, notify):
-            from saas_store import user_agents_update
             user_agents_update(u["id"], ["applicant"])
+            return
+
+        # 2) Semi-auto — LinkedIn/Indeed/etc.: prep everything, one-tap for them
+        if (job.get("match_score") or 0) >= aa["min_score"]:
+            site = semi_auto_site(job.get("url", ""))
+            if site:
+                send_ready_to_apply(job, result, site, chat_id=chat_id)
+                set_job_status(u["id"], job["id"], "ready")
+                user_agents_update(u["id"], ["applicant"])
     except Exception as exc:
         log_issue("run_saas", f"auto-apply {job.get('title')}: {exc}", "warning")
 

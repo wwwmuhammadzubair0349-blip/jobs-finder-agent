@@ -137,6 +137,31 @@ def send_job(job: dict, files: dict, cv_data: dict | None = None, chat_id: str |
     return ok
 
 
+def send_ready_to_apply(job: dict, files: dict, site: str, chat_id: str | None = None) -> bool:
+    """Semi-auto (Option A): job is on LinkedIn/Indeed etc. where we must NOT
+    auto-submit. Prepare everything and hand the user a one-tap apply."""
+    title = html.escape(job.get("title", "Role"))
+    company = html.escape(job.get("company", ""))
+    score = job.get("match_score")
+    url = job.get("url", "") or "https://t.me"
+    score_line = f" · <b>{score:.0f}% match</b>" if score is not None else ""
+
+    caption = (
+        f"🎯 <b>Ready to apply</b> — {title}\n"
+        f"🏬 {company} · <i>{html.escape(site)}</i>{score_line}\n\n"
+        f"Your tailored <b>CV + cover letter</b> are attached 👇\n"
+        f"Tap below, open <b>Easy Apply</b>, attach the CV, and submit — 30 seconds, from your own account."
+    )
+    keyboard = {"inline_keyboard": [[{"text": f"📲 Open on {site}", "url": url}]]}
+    ok = send_message(caption, reply_markup=keyboard, chat_id=chat_id)
+
+    if files.get("cv_pdf"):
+        ok = send_document(Path(files["cv_pdf"]), caption=f"📄 Tailored CV — {job.get('title','')}", chat_id=chat_id) and ok
+    if files.get("cover_pdf"):
+        ok = send_document(Path(files["cover_pdf"]), caption="✉️ Cover letter", chat_id=chat_id) and ok
+    return ok
+
+
 def send_alert(text: str) -> bool:
     return send_message(f"🚨 <b>Jobs Finder alert</b>\n{html.escape(text)}")
 
