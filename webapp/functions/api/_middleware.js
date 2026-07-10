@@ -5,7 +5,7 @@ import { verifySession } from "../_shared/auth.js";
 import { one } from "../_shared/db.js";
 import { unauthorized, json } from "../_shared/kv.js";
 
-const PUBLIC_PATHS = ["/api/login", "/api/signup", "/api/logout", "/api/telegram", "/api/telegram-interview", "/api/pool"];
+const PUBLIC_PATHS = ["/api/login", "/api/signup", "/api/logout", "/api/telegram", "/api/telegram-interview", "/api/pool", "/api/setup-webhooks"];
 
 export async function onRequest(context) {
   const { request, env, next, data } = context;
