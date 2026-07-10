@@ -79,18 +79,14 @@ def get_auto_settings(settings: dict) -> dict:
     }
 
 
-def applies_today(user_id: str) -> int:
-    day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
-    rows = query("SELECT applies FROM usage WHERE user_id = ? AND day = ?", [user_id, day])
-    return int(rows[0]["applies"] or 0) if rows else 0
+def applies_today(user_id: str, tz: str = "UTC") -> int:
+    from plans import usage_count, period_key
+    return usage_count(user_id, "autoapply", period_key("day", tz))
 
 
-def bump_applies(user_id: str) -> None:
-    day = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
-    execute(
-        "INSERT INTO usage (user_id, day, searches, cvs, applies) VALUES (?,?,0,0,1) "
-        "ON CONFLICT(user_id, day) DO UPDATE SET applies = COALESCE(applies,0) + 1",
-        [user_id, day])
+def bump_applies(user_id: str, tz: str = "UTC") -> None:
+    from plans import bump, period_key
+    bump(user_id, "autoapply", period_key("day", tz))
 
 
 # ---- sending ------------------------------------------------------------------ #
@@ -131,8 +127,8 @@ def send_application(aa: dict, profile: dict, job: dict, cv_data: dict, files: d
     return True
 
 
-def _mark_applied(user_id: str, job_id: str) -> None:
-    bump_applies(user_id)
+def _mark_applied(user_id: str, job_id: str, tz: str = "UTC") -> None:
+    bump_applies(user_id, tz)
     execute("UPDATE user_jobs SET status='applied', applied_at=? WHERE user_id=? AND job_id=?",
             [_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"), user_id, job_id])
 
@@ -146,7 +142,12 @@ def try_auto_apply(user: dict, settings: dict, profile: dict, job: dict,
         return False
     if (job.get("match_score") or 0) < aa["min_score"]:
         return False
-    if applies_today(user["id"]) >= aa["daily_cap"]:
+    # Effective daily cap = the tighter of the user's own cap and their plan's.
+    from plans import metric_limit
+    tz = settings.get("timezone", "UTC")
+    plan_cap, _ = metric_limit(user.get("plan", "free"), "autoapply")
+    cap = min(aa["daily_cap"], plan_cap)
+    if applies_today(user["id"], tz) >= cap:
         return False
 
     # ---- 1) Email application (best for Gulf "send CV to ..." jobs) ----
@@ -155,7 +156,7 @@ def try_auto_apply(user: dict, settings: dict, profile: dict, job: dict,
         job["_apply_email"] = apply_email
         try:
             send_application(aa, profile, job, cv_data, files)
-            _mark_applied(user["id"], job["id"])
+            _mark_applied(user["id"], job["id"], tz)
             notify(f"🤖✅ <b>Auto-applied</b> — {job.get('title','')}\n"
                    f"🏬 {job.get('company','')}\n"
                    f"📧 Sent from your Gmail to <code>{apply_email}</code> with your tailored CV + cover letter.")
@@ -175,7 +176,7 @@ def try_auto_apply(user: dict, settings: dict, profile: dict, job: dict,
         if supported_ats(job.get("url", "")):
             ok, reason = apply_via_form(job["url"], profile, files, dry_run=False)
             if ok:
-                _mark_applied(user["id"], job["id"])
+                _mark_applied(user["id"], job["id"], tz)
                 notify(f"🤖✅ <b>Auto-applied</b> — {job.get('title','')}\n"
                        f"🏬 {job.get('company','')}\n"
                        f"📝 Submitted the application form with your CV.")

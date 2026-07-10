@@ -251,13 +251,21 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
     user_agents_update(u["id"], ["collect_jobs", "agent_analyst", "rank_jobs"])
 
     quiet = _in_quiet(settings)
+    plan = u.get("plan", "free")
+    tz = settings.get("timezone", "UTC")
     sent = 0
 
     # New matches → lightweight job CARDS (no CV; user taps to generate on demand).
+    # Gated by the user's plan: only up to their daily notification quota.
     if chat_id and not quiet:
+        from plans import consume, once_per_day
+        from send_telegram import send_job_card
         for j in new[:AUTO_CV_TOP_N]:
+            if not consume(u["id"], plan, "notif", tz):
+                if once_per_day(u["id"], "notif", tz):
+                    _notif_wall(chat_id, plan)
+                break
             try:
-                from send_telegram import send_job_card
                 send_job_card(j, chat_id=chat_id)
                 sent += 1
                 # Autopilot apply — generates the CV ONLY if there's somewhere to apply.
@@ -318,6 +326,22 @@ def _try_apply(u, settings, profile, job, chat_id, store_cv):
             user_agents_update(u["id"], ["applicant"])
     except Exception as exc:
         log_issue("run_saas", f"auto-apply {job.get('title')}: {exc}", "warning")
+
+
+def _notif_wall(chat_id, plan) -> None:
+    """One-shot daily nudge when a user hits their job-alert quota."""
+    try:
+        from send_telegram import send_message
+        from plans import PLAN_META
+        dash = "https://jobs-finder-dashboard.pages.dev"
+        label = (PLAN_META.get(plan) or PLAN_META["free"])["label"]
+        send_message(
+            f"🔔 <b>That's today's job alerts on your {label} plan.</b>\n"
+            f"More fresh matches are waiting — upgrade to receive up to 25/day (Pro) "
+            f"or unlimited (Pro Plus). 👉 {dash}",
+            chat_id=chat_id)
+    except Exception:
+        pass
 
 
 def _finish(status: str) -> None:

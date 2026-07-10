@@ -3,6 +3,7 @@
 // - Applied button: ap:<job_id> → mark that user's job applied.
 import { one, run } from "../_shared/db.js";
 import { json } from "../_shared/kv.js";
+import { consume, userTimezone, PLAN_META } from "../_shared/plans.js";
 
 const CODE_RE = /\bJF-[A-Z0-9]{6}\b/i;
 
@@ -23,7 +24,7 @@ export async function onRequestPost(context) {
     const cq = update.callback_query;
     const chatId = String(cq.message?.chat?.id || "");
     const data = cq.data || "";
-    const user = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
+    const user = await one(env, "SELECT id, plan FROM users WHERE telegram_chat_id = ?", chatId);
 
     if (data.startsWith("ap:")) {
       const jobId = data.slice(3);
@@ -39,14 +40,27 @@ export async function onRequestPost(context) {
       const which = data.startsWith("cv:") ? "cv" : "cl";
       const jobId = data.slice(3);
       if (!user) { await answer(token, cq.id, "Connect your account first"); return json({ ok: true }); }
-      const uj = await one(env, "SELECT cv_key, cover_key, cv_request FROM user_jobs WHERE user_id=? AND job_id=?", user.id, jobId);
+      const uj = await one(env, "SELECT cv_key, cover_key, cv_request, status FROM user_jobs WHERE user_id=? AND job_id=?", user.id, jobId);
       const cachedKey = which === "cv" ? uj?.cv_key : uj?.cover_key;
       if (cachedKey) {
-        // Already generated — send instantly from KV, no pipeline needed.
+        // Already generated — send instantly from KV, no pipeline needed (free).
         await answer(token, cq.id, which === "cv" ? "Sending your CV…" : "Sending your cover letter…");
         await sendKvDocument(env, token, chatId, cachedKey);
+      } else if (uj?.status === "queued") {
+        // Already requested & already charged — just widen the request, no new charge.
+        let req = which;
+        if (uj?.cv_request && uj.cv_request !== which) req = "both";
+        await run(env, "UPDATE user_jobs SET cv_request=? WHERE user_id=? AND job_id=?", req, user.id, jobId);
+        await answer(token, cq.id, "⏳ Still preparing — arrives shortly");
       } else {
-        // Queue generation + kick off the fast manual-send workflow.
+        // First prep for this job → costs one CV/Cover credit (plan-gated).
+        const tz = await userTimezone(env, user.id);
+        const ok = await consume(env, user.id, user.plan, "cvprep", tz);
+        if (!ok) {
+          await answer(token, cq.id, "Daily CV & Cover limit reached");
+          await send(token, chatId, cvprepWall(user.plan, dash));
+          return json({ ok: true });
+        }
         let req = which;
         if (uj?.cv_request && uj.cv_request !== which) req = "both";
         await run(env, "UPDATE user_jobs SET status='queued', cv_request=? WHERE user_id=? AND job_id=? AND status != 'applied'", req, user.id, jobId);
@@ -107,6 +121,12 @@ export async function onRequestPost(context) {
 }
 
 function btnUrl(text, url) { return { text, url }; }
+
+function cvprepWall(plan, dash) {
+  const label = (PLAN_META[plan] || PLAN_META.free).label;
+  return `📄 <b>You've used today's CV & cover-letter preparations on your ${label} plan.</b>\n` +
+    `Auto-applied jobs never count against this. Upgrade to prepare more tailored documents daily 👉 ${dash}`;
+}
 
 async function sendKvDocument(env, token, chatId, key) {
   if (!token) return;

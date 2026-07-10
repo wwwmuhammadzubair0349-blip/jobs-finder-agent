@@ -1,6 +1,7 @@
 // POST /api/send-job { job_id } — queue CV/CL generation + Telegram delivery only.
 import { one, run } from "../_shared/db.js";
 import { json, badRequest } from "../_shared/kv.js";
+import { consume, userTimezone, PLAN_META } from "../_shared/plans.js";
 
 export async function onRequestPost(context) {
   const { env, data } = context;
@@ -9,8 +10,23 @@ export async function onRequestPost(context) {
   const jobId = body?.job_id || body?.job?.id;
   if (!jobId) return badRequest("job_id required");
 
-  const uj = await one(env, "SELECT id FROM user_jobs WHERE user_id = ? AND job_id = ?", data.userId, jobId);
+  const uj = await one(env, "SELECT id, cv_key, status FROM user_jobs WHERE user_id = ? AND job_id = ?", data.userId, jobId);
   if (!uj) return badRequest("job not found for this user");
+
+  // First prep for this job costs one CV/Cover credit (plan-gated). A resend of
+  // already-generated docs (cv_key set) or a request already queued is free.
+  if (!uj.cv_key && uj.status !== "queued") {
+    const u = await one(env, "SELECT plan FROM users WHERE id = ?", data.userId);
+    const tz = await userTimezone(env, data.userId);
+    const ok = await consume(env, data.userId, u?.plan || "free", "cvprep", tz);
+    if (!ok) {
+      const label = (PLAN_META[u?.plan] || PLAN_META.free).label;
+      return json({
+        ok: false, error: "limit",
+        message: `You've used today's CV & cover-letter preparations on your ${label} plan. Upgrade to prepare more.`,
+      }, { status: 402 });
+    }
+  }
 
   // Mark it queued; the pipeline picks up status='queued' rows.
   await run(env, "UPDATE user_jobs SET status = 'queued' WHERE id = ?", uj.id);

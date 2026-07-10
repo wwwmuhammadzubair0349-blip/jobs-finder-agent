@@ -4,6 +4,7 @@
 // to upgrade it. Full memory per chat; adapts to any instruction.
 import { one, all, run } from "../_shared/db.js";
 import { json, kvJSON, kvPut } from "../_shared/kv.js";
+import { consume, userTimezone, PLAN_META } from "../_shared/plans.js";
 
 const CODE_RE = /\bJF-[A-Z0-9]{6}\b/i;
 const RULE = "──────────────";
@@ -43,7 +44,7 @@ export async function onRequestPost(context) {
     return json({ ok: true });
   }
 
-  const user = await one(env, "SELECT id FROM users WHERE interview_chat_id = ?", chatId);
+  const user = await one(env, "SELECT id, plan FROM users WHERE interview_chat_id = ?", chatId);
   if (!user) {
     await send(token, chatId, `👋 <b>AI Interview Coach</b>\n${RULE}\nConnect first: send your code (like <code>JF-XXXXXX</code>) from your dashboard.`);
     return json({ ok: true });
@@ -74,6 +75,7 @@ export async function onRequestPost(context) {
   // ---- Pick a job by number → set context, kick off the interview ----
   const num = parseInt(text, 10);
   if (!Number.isNaN(num) && num >= 1 && num <= jobs.length && text.length <= 3) {
+    if (!(await startInterviewCredit(env, user, chatId, token))) return json({ ok: true });
     const j = jobs[num - 1];
     conv.job = { id: j.id, title: j.title, company: j.company, desc: (j.description || "").slice(0, 1200) };
     conv.messages = [];
@@ -87,6 +89,7 @@ export async function onRequestPost(context) {
 
   // ---- Free conversation turn ----
   if (!conv.job && jobs.length && conv.messages.length === 0 && (lc === "start" || lc === "begin")) {
+    if (!(await startInterviewCredit(env, user, chatId, token))) return json({ ok: true });
     conv.job = { id: jobs[0].id, title: jobs[0].title, company: jobs[0].company, desc: (jobs[0].description || "").slice(0, 1200) };
   }
   conv.messages.push({ role: "user", content: text });
@@ -96,6 +99,20 @@ export async function onRequestPost(context) {
   await kvPut(env, `iv_conv:${chatId}`, conv);
   await send(token, chatId, reply);
   return json({ ok: true });
+}
+
+// Consume one interview-prep credit when a new mock starts. Returns false (and
+// sends an upgrade nudge) if the user is over their plan's quota.
+async function startInterviewCredit(env, user, chatId, token) {
+  const tz = await userTimezone(env, user.id);
+  if (await consume(env, user.id, user.plan, "interview", tz)) return true;
+  const dash = env.DASHBOARD_URL || "https://jobs-finder-dashboard.pages.dev";
+  const label = (PLAN_META[user.plan] || PLAN_META.free).label;
+  const window = (user.plan || "free").toLowerCase() === "free" ? "this week" : "today";
+  await send(token, chatId,
+    `🧠 <b>You've used your interview practice for ${window} on the ${label} plan.</b>\n${RULE}\n` +
+    `Upgrade for daily mock interviews (Starter/Pro) or unlimited (Pro Plus) 👉 ${dash}`);
+  return false;
 }
 
 // --------------------------------------------------------------------------- //
