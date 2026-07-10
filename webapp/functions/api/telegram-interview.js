@@ -180,7 +180,8 @@ async function startInterview(ctx) {
     `🎤 <b>Mock interview</b> · ${esc(conv.job.title)}\n${RULE}\n` +
     `${planLine(user.plan, left)}\nAnswer naturally — I'll coach you after each answer. You can end anytime.`,
     endKb());
-  const opener = await chat(env, conv, profile, "Greet the candidate warmly in one line, then ask your FIRST interview question. One question only.");
+  const opener = await chat(env, conv, profile,
+    "Start the interview now. Output EXACTLY:\n🎤 <b>Question 1</b>\n<blockquote>your first interview question</blockquote>\nOne short warm line may precede it. No feedback yet — there is no answer to assess.");
   conv.messages.push({ role: "assistant", content: opener });
   await save(ctx);
   await send(token, chatId, opener, endKb());
@@ -193,8 +194,8 @@ async function interviewTurn(ctx, text) {
   const profile = await userProfile(env, user.id);
 
   const force = conv.qcount >= MAX_QUESTIONS
-    ? "This is the end of the interview. Give a short overall assessment (top strengths + the 2 biggest things to improve), then close warmly. Put [[END]] on the very last line."
-    : null;
+    ? "The interview is over — do NOT ask another question. Output EXACTLY the summary block:\n🏁 <b>Interview summary</b>\n\n💪 <b>Strengths</b>\n• point one\n• point two\n\n🎯 <b>Work on next</b>\n• point one\n• point two\n\nThen one warm closing line, then [[END]] on its own final line."
+    : `Reply to the candidate's answer. This is question ${conv.qcount + 1} of about ${MAX_QUESTIONS}.`;
   let reply = await chat(env, conv, profile, force);
 
   const done = /\[\[END\]\]/i.test(reply) || conv.qcount >= MAX_QUESTIONS;
@@ -220,19 +221,21 @@ async function endInterview(ctx, completed) {
 
   const tz = await userTimezone(env, user.id);
   const left = await remaining(env, user.id, user.plan, "interview", tz);
-  const head = completed ? "🏁 <b>Interview complete — great work!</b>" : "✖️ <b>Interview ended.</b>";
+  // On auto-complete the coach already sent its own 🏁 summary — keep this
+  // follow-up light. On a manual end there was no summary, so mark it.
+  const head = completed ? "" : `✖️ <b>Interview ended.</b>\n${RULE}\n`;
 
   if (left <= 0 && (user.plan || "free").toLowerCase() !== "proplus") {
     const { period } = metricLimit(user.plan, "interview");
     const w = period === "week" ? "this week" : "today";
     await send(token, chatId,
-      `${head}\n${RULE}\n` +
+      `${head}${completed ? "🎉 <b>Nice work — that's a wrap!</b>\n" : ""}` +
       `That was your last interview ${w} on the <b>${planLabel(user.plan)}</b> plan.\n` +
       `Upgrade to keep practicing — daily mocks on Starter/Pro, unlimited on Pro Plus. 👇`,
       [[btnUrl("⭐ Upgrade my plan", ctx.dash)]]);
   } else {
     await send(token, chatId,
-      `${head}\n${RULE}\n${planLine(user.plan, left)}\nReady for another?`,
+      `${head}${planLine(user.plan, left)}\nReady for another?`,
       [[btn("🎤 New interview", "iv:conduct")]]);
   }
 }
@@ -290,13 +293,18 @@ async function chat(env, conv, profile, forceTask) {
     `You are an elite interview coach and mock interviewer — warm, sharp, human, like a great senior hiring manager crossed with a supportive mentor. ` +
     (job ? `You are interviewing the candidate for: ${job.title}${job.company ? " at " + job.company : ""}. Role context: ${job.desc || "(use the title)"}. ` : `Help the candidate practice interviews. `) +
     `Candidate background: ${JSON.stringify({ headline: profile.headline, skills: (profile.skills || []).slice(0, 20), summary: profile.professional_summary }).slice(0, 1500)}. ` +
-    `\n\nHow you behave:\n` +
-    `- Ask ONE question at a time. Keep it natural and progressive.\n` +
-    `- After each answer: brief honest FEEDBACK (strength + weakness), then a concrete TIP (STAR, a real metric, be specific), then the next question.\n` +
-    `- Run about ${MAX_QUESTIONS} questions total, then wrap up with an overall assessment.\n` +
-    `- When (and only when) the interview is finished, put [[END]] on the final line.\n` +
-    `- Be encouraging and concise. Never robotic or repetitive.\n` +
-    `- Use simple Telegram HTML only: <b>bold</b>, <i>italic</i>. No markdown, no #, no *.`;
+    `\n\n════ OUTPUT FORMAT (follow EXACTLY) ════\n` +
+    `After the candidate answers a question, reply with these three labelled sections, in order, separated by a blank line:\n\n` +
+    `📊 <b>Feedback</b>\n<1–2 tight sentences: what was strong, what was weak. Honest, specific.>\n\n` +
+    `💡 <b>Tip</b>\n<one concrete upgrade: use STAR, add a real metric, be specific.>\n\n` +
+    `➡️ <b>Next question</b>\n<blockquote>the single next question</blockquote>\n\n` +
+    `════ RULES ════\n` +
+    `- ONE question at a time; keep the interview progressive and role-relevant.\n` +
+    `- Keep each section SHORT and punchy — no walls of text.\n` +
+    `- Always wrap the actual question in <blockquote>…</blockquote> so it stands out.\n` +
+    `- Run about ${MAX_QUESTIONS} questions, then give the summary block and [[END]].\n` +
+    `- Use ONLY these Telegram HTML tags: <b>, <i>, <blockquote>. For bullet lists use lines that begin with "• ".\n` +
+    `- NEVER use Markdown, #, *, or backticks. Vary your wording; never sound robotic.`;
 
   const messages = [{ role: "system", content: sys }];
   for (const m of conv.messages.slice(-MAX_TURNS)) messages.push(m);
