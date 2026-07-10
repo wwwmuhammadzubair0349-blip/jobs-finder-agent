@@ -190,7 +190,10 @@ async function startInterview(ctx) {
 async function interviewTurn(ctx, text) {
   const { env, token, chatId, user, conv } = ctx;
   conv.messages.push({ role: "user", content: text });
-  conv.qcount = (conv.qcount || 0) + 1;
+  // Don't let filler ("ok", "sorry", "idk", "?") burn a real question slot.
+  const t = text.trim();
+  const trivial = t.length < 3 || /^(ok|okay|k|sorry|idk|i\s*don'?t\s*know|dunno|skip|next|yes|no|nope|hmm+|what|huh|repeat|pass|\?|\.)+$/i.test(t);
+  if (!trivial) conv.qcount = (conv.qcount || 0) + 1;
   const profile = await userProfile(env, user.id);
 
   const force = conv.qcount >= MAX_QUESTIONS
@@ -298,11 +301,16 @@ async function chat(env, conv, profile, forceTask) {
     `📊 <b>Feedback</b>\n<1–2 tight sentences: what was strong, what was weak. Honest, specific.>\n\n` +
     `💡 <b>Tip</b>\n<one concrete upgrade: use STAR, add a real metric, be specific.>\n\n` +
     `➡️ <b>Next question</b>\n<blockquote>the single next question</blockquote>\n\n` +
+    `════ IF THE ANSWER IS NOT REAL ════\n` +
+    `If the candidate's latest message is NOT a genuine attempt to answer — e.g. "okay", "sorry", "ok", "idk", "skip", "next", empty, a question back to you, or clearly off-topic — DO NOT invent feedback about an answer they never gave. Instead reply with this structure:\n\n` +
+    `🤔 <b>Let's try that one</b>\n<one warm, encouraging line; if they seem stuck, add a quick hint or a 1-line model answer to get them going.>\n\n` +
+    `➡️ <b>Question</b>\n<blockquote>re-ask the SAME question, unchanged</blockquote>\n\n` +
+    `Judge by the actual content of THIS message only — never assume they described something they didn't.\n\n` +
     `════ RULES ════\n` +
     `- ONE question at a time; keep the interview progressive and role-relevant.\n` +
     `- Keep each section SHORT and punchy — no walls of text.\n` +
     `- Always wrap the actual question in <blockquote>…</blockquote> so it stands out.\n` +
-    `- Run about ${MAX_QUESTIONS} questions, then give the summary block and [[END]].\n` +
+    `- Run about ${MAX_QUESTIONS} real answers, then give the summary block and [[END]].\n` +
     `- Use ONLY these Telegram HTML tags: <b>, <i>, <blockquote>. For bullet lists use lines that begin with "• ".\n` +
     `- NEVER use Markdown, #, *, or backticks. Vary your wording; never sound robotic.`;
 
