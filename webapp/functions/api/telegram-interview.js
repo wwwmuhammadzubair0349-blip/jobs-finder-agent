@@ -69,7 +69,7 @@ export async function onRequestPost(context) {
   const lc = text.toLowerCase();
 
   if (GREET.includes(lc) || lc === "reset") {
-    conv.stage = "menu";
+    ctx.conv = freshConv();               // always start clean from the menu
     await save(ctx);
     await showMenu(token, chatId, channel);
     return json({ ok: true });
