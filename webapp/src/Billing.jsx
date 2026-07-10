@@ -41,10 +41,11 @@ function MeterRow({ mkey, u }) {
 }
 
 // Usage card for the Today tab. `plan` is data.plan { id, label, usage }.
-export function UsageMeters({ plan, onOpen }) {
+export function UsageMeters({ plan, onOpen, onManage }) {
   if (!plan?.usage) return null;
   const order = ["notif", "autoapply", "cvprep", "interview"];
   const isTop = plan.id === "proplus";
+  const isPaid = plan.id !== "free";
   return (
     <div className="card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -55,13 +56,19 @@ export function UsageMeters({ plan, onOpen }) {
       <div className="meters">
         {order.map((k) => plan.usage[k] && <MeterRow key={k} mkey={k} u={plan.usage[k]} />)}
       </div>
+      {isPaid && onManage && (
+        <div style={{ marginTop: 12, textAlign: "right" }}>
+          <button className="btn ghost sm" onClick={onManage}>Manage billing</button>
+        </div>
+      )}
     </div>
   );
 }
 
 // Full pricing page as a modal. `onChoose(id)` handles upgrade intent.
-export function PricingModal({ currentId = "free", onClose, onChoose }) {
+export function PricingModal({ currentId = "free", onClose, onChoose, onManage }) {
   const curRank = rank(currentId);
+  const isPaid = currentId !== "free";
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal pricing fade" onClick={(e) => e.stopPropagation()}>
@@ -103,6 +110,7 @@ export function PricingModal({ currentId = "free", onClose, onChoose }) {
         </div>
         <div className="hint" style={{ textAlign: "center", marginTop: 12 }}>
           Auto-applied CVs & cover letters never count against your CV/cover quota.
+          {isPaid && onManage && <> · <a role="button" onClick={onManage} style={{ cursor: "pointer", color: "var(--accent)" }}>Manage billing</a></>}
         </div>
       </div>
     </div>

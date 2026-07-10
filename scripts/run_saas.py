@@ -111,10 +111,17 @@ def main() -> None:
     from rank_jobs import rank
     from saas_store import (active_users, user_config, upsert_pool_jobs, prune_pool,
                             existing_user_job_ids, add_user_job, queued_user_jobs,
-                            mark_sent, store_cv_files)
+                            mark_sent, store_cv_files, expire_plans)
 
     log(f"SaaS tick @ {_now()} (D1={'on' if d1_available() else 'off'}, KV={'cloud' if kv_available() else 'local'})")
     push_status("running")
+
+    try:
+        expired = expire_plans()
+        if expired:
+            log(f"downgraded {expired} lapsed plan(s) to free")
+    except Exception as exc:
+        log(f"  plan-expiry check failed: {exc}")
 
     users = active_users()
     log(f"{len(users)} active users")

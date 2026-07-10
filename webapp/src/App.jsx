@@ -121,6 +121,36 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
     try { await navigator.clipboard.writeText(url); flash("Job link copied 🔗"); } catch {}
   }
 
+  async function startCheckout(planId) {
+    setShowPricing(false);
+    flash("Opening secure checkout…");
+    try {
+      const r = await api.checkout(planId);
+      if (r?.url) { window.location.href = r.url; return; }
+      flash("Couldn't start checkout — please try again.");
+    } catch (e) {
+      flash(e.message === "billing_unconfigured" ? "Payments aren't enabled yet — coming very soon." : "Couldn't start checkout.");
+    }
+  }
+
+  async function manageBilling() {
+    try {
+      const r = await api.billingPortal();
+      if (r?.url) { window.location.href = r.url; return; }
+    } catch (e) {
+      flash(e.message === "no_subscription" ? "No active subscription to manage." : "Couldn't open billing portal.");
+    }
+  }
+
+  // Returning from a successful Lemon Squeezy checkout.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("upgraded")) {
+      window.history.replaceState({}, "", "/");
+      flash("🎉 You're upgraded — your new plan is active!");
+      setTimeout(() => { load(); reloadMe(); }, 1500);
+    }
+  }, []); // eslint-disable-line
+
   const issues = data?.issues || [];
   const errCount = issues.filter((i) => i.level === "error" && withinHours(i.at, 48)).length;
 
@@ -147,7 +177,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
         {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
@@ -175,7 +205,8 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         <PricingModal
           currentId={data?.plan?.id || "free"}
           onClose={() => setShowPricing(false)}
-          onChoose={(id) => { setShowPricing(false); flash("Secure checkout is coming in the next update ✨"); }}
+          onChoose={startCheckout}
+          onManage={manageBilling}
         />
       )}
 
@@ -356,7 +387,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
   );
 }
 
-function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile, onRun, onUpgrade }) {
+function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile, onRun, onUpgrade, onManage }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -396,7 +427,7 @@ function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile
 
       <SetupChecklist complete={complete} telegram={me.user?.telegram_connected} goProfile={goProfile} />
 
-      {data.plan && <UsageMeters plan={data.plan} onOpen={onUpgrade} />}
+      {data.plan && <UsageMeters plan={data.plan} onOpen={onUpgrade} onManage={onManage} />}
 
       <ConnectCard me={me} reloadMe={reloadMe} />
 

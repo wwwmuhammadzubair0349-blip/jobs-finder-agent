@@ -24,6 +24,9 @@ export const api = {
   runNow: () => req("/run", { method: "POST" }),
   sendJob: (job) => req("/send-job", { method: "POST", body: JSON.stringify({ job_id: job.id }) }),
   regenCode: () => req("/code", { method: "POST" }),
+  // billing
+  checkout: (plan) => req("/checkout", { method: "POST", body: JSON.stringify({ plan }) }),
+  billingPortal: () => req("/billing-portal"),
   // admin
   adminUsers: () => req("/admin-users"),
   adminSwitch: (user_id) => req("/admin-switch", { method: "POST", body: JSON.stringify({ user_id }) }),

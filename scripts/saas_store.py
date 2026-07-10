@@ -23,6 +23,17 @@ def active_users() -> list[dict]:
     return query("SELECT id, email, telegram_chat_id, plan FROM users WHERE status = 'active'")
 
 
+def expire_plans() -> int:
+    """Safety net: downgrade any paid plan whose expiry has passed (in case a
+    Lemon Squeezy webhook was missed). Returns the number downgraded."""
+    rows = query(
+        "SELECT id FROM users WHERE plan != 'free' AND plan_expires_at IS NOT NULL AND plan_expires_at < ?",
+        [_now()])
+    for r in rows:
+        execute("UPDATE users SET plan='free', plan_expires_at=NULL WHERE id=?", [r["id"]])
+    return len(rows)
+
+
 def user_config(user_id: str) -> dict:
     rows = query("SELECT profile, search, settings FROM configs WHERE user_id = ?", [user_id])
     if not rows:
