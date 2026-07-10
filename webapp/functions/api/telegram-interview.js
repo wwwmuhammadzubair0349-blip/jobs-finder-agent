@@ -1,14 +1,22 @@
-// POST /api/telegram-interview — Interview-prep bot.
-// A real, free-flowing AI conversation (like ChatGPT) that acts as an
-// interviewer + coach: asks questions, gives feedback on each answer, and tips
-// to upgrade it. Full memory per chat; adapts to any instruction.
+// POST /api/telegram-interview — Interview-prep bot (guided, button-driven).
+//
+// Flow:  hi → [🎤 Conduct an interview] → pick a job or type a title →
+//        paste description → [🚀 Start] → AI mock interview (every message has
+//        an [✖️ End] button) → bot auto-ends with a summary when complete.
+//
+// One interview-prep credit is consumed at exactly ONE point: when the mock
+// actually starts (the 🚀 Start tap). Plan limits are shown up front and the
+// wall links to upgrade. See _shared/plans.js.
 import { one, all, run } from "../_shared/db.js";
 import { json, kvJSON, kvPut } from "../_shared/kv.js";
-import { consume, userTimezone, PLAN_META } from "../_shared/plans.js";
+import { consume, remaining, metricLimit, userTimezone, PLAN_META } from "../_shared/plans.js";
 
 const CODE_RE = /\bJF-[A-Z0-9]{6}\b/i;
 const RULE = "──────────────";
-const MAX_TURNS = 16;
+const MAX_TURNS = 16;         // rolling context window
+const MAX_QUESTIONS = 6;      // interview auto-wraps after this many answers
+
+const GREET = ["hi", "hello", "hey", "menu", "start", "/start", "begin", "help"];
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -18,26 +26,23 @@ export async function onRequestPost(context) {
   let update;
   try { update = await request.json(); } catch { return json({ ok: true }); }
   const token = env.INTERVIEW_BOT_TOKEN;
+  const dash = env.DASHBOARD_URL || "https://jobs-finder-dashboard.pages.dev";
   const channel = (env.TELEGRAM_CHANNEL || "@dailyjobs_feed").replace("@", "");
+
+  const cq = update.callback_query;
   const msg = update.message;
-  if (!msg || !msg.text) return json({ ok: true });
+  const chatId = String(cq?.message?.chat?.id || msg?.chat?.id || "");
+  if (!chatId) return json({ ok: true });
+  const text = (msg?.text || "").trim();
 
-  const chatId = String(msg.chat.id);
-  const text = msg.text.trim();
-  const lc = text.toLowerCase();
-
-  // ---- Connection ----
+  // ---- Connection (via typed code) ----
   const codeMatch = text.match(CODE_RE);
   if (codeMatch) {
-    const user = await one(env, "SELECT id FROM users WHERE connection_code = ?", codeMatch[0].toUpperCase());
-    if (user) {
-      await run(env, "UPDATE users SET interview_chat_id = ?, telegram_chat_id = COALESCE(telegram_chat_id, ?) WHERE id = ?", chatId, chatId, user.id);
-      await send(token, chatId,
-        `✅ <b>Connected — your AI Interview Coach</b>\n${RULE}\n` +
-        `I'll run realistic mock interviews for your jobs and coach you after every answer.\n\n` +
-        `Just talk to me like a person:\n• “<i>interview me for job 2</i>”\n• “<i>ask me harder questions</i>”\n• “<i>give me a stronger version of that</i>”\n\n` +
-        `Send <b>jobs</b> to see your roles, or just say <b>start</b>.`,
-        [[btnUrl("📢 Daily jobs & tips", `https://t.me/${channel}`)]]);
+    const u = await one(env, "SELECT id FROM users WHERE connection_code = ?", codeMatch[0].toUpperCase());
+    if (u) {
+      await run(env, "UPDATE users SET interview_chat_id = ?, telegram_chat_id = COALESCE(telegram_chat_id, ?) WHERE id = ?", chatId, chatId, u.id);
+      await kvPut(env, `iv_conv:${chatId}`, freshConv());
+      await showMenu(token, chatId, channel, "✅ <b>Connected — your AI Interview Coach</b>");
     } else {
       await send(token, chatId, `❌ <b>Code not recognised</b>\n${RULE}\nCopy your code (like <code>JF-XXXXXX</code>) from the dashboard and send it here.`);
     }
@@ -50,69 +55,232 @@ export async function onRequestPost(context) {
     return json({ ok: true });
   }
 
-  const jobs = await all(env,
-    `SELECT jp.id, jp.title, jp.company, jp.description FROM user_jobs uj
-       JOIN job_pool jp ON jp.id = uj.job_id WHERE uj.user_id = ?
-      ORDER BY uj.first_seen DESC LIMIT 20`, user.id);
+  const conv = (await kvJSON(env, `iv_conv:${chatId}`, null)) || freshConv();
+  const ctx = { env, token, chatId, dash, channel, user, conv };
 
-  const cfg = await one(env, "SELECT profile FROM configs WHERE user_id = ?", user.id);
-  const profile = cfg?.profile ? JSON.parse(cfg.profile) : {};
-  const conv = (await kvJSON(env, `iv_conv:${chatId}`, null)) || { job: null, messages: [] };
-
-  // ---- Commands ----
-  if (["reset", "restart", "new", "stop", "end"].includes(lc)) {
-    await kvPut(env, `iv_conv:${chatId}`, { job: null, messages: [] });
-    await send(token, chatId, `🔄 <b>Fresh start.</b> Send <b>jobs</b> to pick a role, or just tell me what you want to practice.`);
-    return json({ ok: true });
-  }
-  if (["jobs", "list", "roles"].includes(lc)) {
-    if (!jobs.length) { await send(token, chatId, `📭 You don't have any jobs yet. Once the finder sends you jobs, come back to practice.`); return json({ ok: true }); }
-    const list = jobs.map((j, i) => `<b>${i + 1}.</b> ${esc(j.title)} — <i>${esc(j.company)}</i>`).join("\n");
-    await send(token, chatId, `📋 <b>Your roles</b>\n${RULE}\n${list}\n${RULE}\nReply a <b>number</b> to interview for that role, or just start chatting.`);
+  // ---- Button callbacks ----
+  if (cq) {
+    await handleCallback(ctx, cq);
     return json({ ok: true });
   }
 
-  // ---- Pick a job by number → set context, kick off the interview ----
-  const num = parseInt(text, 10);
-  if (!Number.isNaN(num) && num >= 1 && num <= jobs.length && text.length <= 3) {
-    if (!(await startInterviewCredit(env, user, chatId, token))) return json({ ok: true });
-    const j = jobs[num - 1];
-    conv.job = { id: j.id, title: j.title, company: j.company, desc: (j.description || "").slice(0, 1200) };
-    conv.messages = [];
-    await send(token, chatId, `🎤 <b>Mock interview</b> · ${esc(j.title)}\n<i>${esc(j.company)}</i>\n${RULE}\nLet's begin — answer naturally, I'll coach you after each one. Type <b>reset</b> anytime.`);
-    const opener = await chat(env, conv, profile, "Begin the interview with a warm, natural opener question for this role. Just the question.");
-    conv.messages.push({ role: "assistant", content: opener });
-    await kvPut(env, `iv_conv:${chatId}`, conv);
-    await send(token, chatId, opener);
+  // ---- Text messages, routed by stage ----
+  if (!text) return json({ ok: true });
+  const lc = text.toLowerCase();
+
+  if (GREET.includes(lc) || lc === "reset") {
+    conv.stage = "menu";
+    await save(ctx);
+    await showMenu(token, chatId, channel);
     return json({ ok: true });
   }
+  if (["end", "stop", "quit", "cancel"].includes(lc)) { await endInterview(ctx, false); return json({ ok: true }); }
 
-  // ---- Free conversation turn ----
-  if (!conv.job && jobs.length && conv.messages.length === 0 && (lc === "start" || lc === "begin")) {
-    if (!(await startInterviewCredit(env, user, chatId, token))) return json({ ok: true });
-    conv.job = { id: jobs[0].id, title: jobs[0].title, company: jobs[0].company, desc: (jobs[0].description || "").slice(0, 1200) };
-  }
-  conv.messages.push({ role: "user", content: text });
-  const reply = await chat(env, conv, profile, null);
-  conv.messages.push({ role: "assistant", content: reply });
-  conv.messages = conv.messages.slice(-MAX_TURNS);
-  await kvPut(env, `iv_conv:${chatId}`, conv);
-  await send(token, chatId, reply);
+  if (conv.stage === "await_title") { await gotTitle(ctx, text); return json({ ok: true }); }
+  if (conv.stage === "await_desc") { await gotDesc(ctx, text); return json({ ok: true }); }
+  if (conv.stage === "interviewing") { await interviewTurn(ctx, text); return json({ ok: true }); }
+
+  // Anything else → the menu (keeps the bot from free-forming outside a session).
+  await showMenu(token, chatId, channel);
   return json({ ok: true });
 }
 
-// Consume one interview-prep credit when a new mock starts. Returns false (and
-// sends an upgrade nudge) if the user is over their plan's quota.
-async function startInterviewCredit(env, user, chatId, token) {
+// --------------------------------------------------------------------------- //
+// Callbacks
+async function handleCallback(ctx, cq) {
+  const { env, token, chatId, user, conv } = ctx;
+  const data = cq.data || "";
+  await answer(token, cq.id, "");
+
+  if (data === "iv:conduct") return conduct(ctx);
+  if (data === "iv:manual") { conv.stage = "await_title"; conv.job = null; await save(ctx); return send(token, chatId, `✍️ <b>New interview</b>\n${RULE}\nSend me the <b>job title</b> you want to practice for (e.g. <i>Electrical Engineer</i>).`, endKb()); }
+  if (data.startsWith("iv:job:")) return pickJob(ctx, parseInt(data.slice(7), 10));
+  if (data === "iv:start") return startInterview(ctx);
+  if (data === "iv:edit") { conv.stage = "await_title"; conv.job = null; await save(ctx); return send(token, chatId, `✍️ Okay — send me the <b>job title</b> again.`, endKb()); }
+  if (data === "iv:end") return endInterview(ctx, false);
+  await send(token, chatId, "Tap <b>menu</b> to begin.");
+}
+
+// Step 1 — user wants to conduct an interview: check the plan, then offer jobs.
+async function conduct(ctx) {
+  const { env, token, chatId, user, dash } = ctx;
   const tz = await userTimezone(env, user.id);
-  if (await consume(env, user.id, user.plan, "interview", tz)) return true;
-  const dash = env.DASHBOARD_URL || "https://jobs-finder-dashboard.pages.dev";
-  const label = (PLAN_META[user.plan] || PLAN_META.free).label;
-  const window = (user.plan || "free").toLowerCase() === "free" ? "this week" : "today";
+  const left = await remaining(env, user.id, user.plan, "interview", tz);
+  if (left <= 0) return wall(ctx, tz);
+
+  const jobs = await userJobs(env, user.id);
+  ctx.conv.stage = "await_title";
+  ctx.conv.job = null;
+  await save(ctx);
+
+  const rows = jobs.slice(0, 5).map((j, i) => [btn(`${i + 1}. ${j.title} — ${j.company}`.slice(0, 60), `iv:job:${i}`)]);
+  rows.push([btn("✍️ Type a new job title", "iv:manual")]);
+  rows.push([btn("✖️ Cancel", "iv:end")]);
   await send(token, chatId,
-    `🧠 <b>You've used your interview practice for ${window} on the ${label} plan.</b>\n${RULE}\n` +
-    `Upgrade for daily mock interviews (Starter/Pro) or unlimited (Pro Plus) 👉 ${dash}`);
-  return false;
+    `${planLine(user.plan, left)}\n${RULE}\n` +
+    `Pick one of your matched jobs to practice for, or type a new job title.`,
+    rows);
+}
+
+async function pickJob(ctx, idx) {
+  const { env, token, chatId, user, conv } = ctx;
+  const jobs = await userJobs(env, user.id);
+  const j = jobs[idx];
+  if (!j) return send(token, chatId, "That job isn't available — tap <b>menu</b> to restart.");
+  conv.job = { title: j.title, company: j.company, desc: (j.description || "").slice(0, 1400) };
+  conv.stage = "confirm";
+  await save(ctx);
+  await confirmCard(ctx);
+}
+
+async function gotTitle(ctx, title) {
+  const { conv, token, chatId } = ctx;
+  conv.job = { title: title.slice(0, 120), company: "", desc: "" };
+  conv.stage = "await_desc";
+  await save(ctx);
+  await send(token, chatId,
+    `📝 Role: <b>${esc(conv.job.title)}</b>\n${RULE}\n` +
+    `Paste the <b>job description</b> so I can tailor the questions — or type <b>skip</b> to go with just the title.`,
+    endKb());
+}
+
+async function gotDesc(ctx, desc) {
+  const { conv } = ctx;
+  conv.job.desc = /^skip$/i.test(desc.trim()) ? "" : desc.slice(0, 1600);
+  conv.stage = "confirm";
+  await save(ctx);
+  await confirmCard(ctx);
+}
+
+async function confirmCard(ctx) {
+  const { token, chatId, conv } = ctx;
+  const j = conv.job;
+  const snippet = j.desc ? `\n<i>${esc(j.desc.slice(0, 180))}${j.desc.length > 180 ? "…" : ""}</i>` : "\n<i>(no description — I'll use the title)</i>";
+  await send(token, chatId,
+    `✅ <b>Ready to start</b>\n${RULE}\n` +
+    `Role: <b>${esc(j.title)}</b>${j.company ? ` · ${esc(j.company)}` : ""}${snippet}\n\n` +
+    `Start the mock interview now?`,
+    [[btn("🚀 Start interview", "iv:start")], [btn("✍️ Edit", "iv:edit"), btn("✖️ Cancel", "iv:end")]]);
+}
+
+// Step 2 — actually start: consume ONE credit here.
+async function startInterview(ctx) {
+  const { env, token, chatId, user, conv } = ctx;
+  if (!conv.job) return send(token, chatId, "Nothing to start — tap <b>menu</b>.");
+  const tz = await userTimezone(env, user.id);
+  const ok = await consume(env, user.id, user.plan, "interview", tz);
+  if (!ok) return wall(ctx, tz);
+
+  conv.stage = "interviewing";
+  conv.messages = [];
+  conv.qcount = 0;
+  const left = await remaining(env, user.id, user.plan, "interview", tz);
+  const profile = await userProfile(env, user.id);
+  await send(token, chatId,
+    `🎤 <b>Mock interview</b> · ${esc(conv.job.title)}\n${RULE}\n` +
+    `${planLine(user.plan, left)}\nAnswer naturally — I'll coach you after each answer. You can end anytime.`,
+    endKb());
+  const opener = await chat(env, conv, profile, "Greet the candidate warmly in one line, then ask your FIRST interview question. One question only.");
+  conv.messages.push({ role: "assistant", content: opener });
+  await save(ctx);
+  await send(token, chatId, opener, endKb());
+}
+
+async function interviewTurn(ctx, text) {
+  const { env, token, chatId, user, conv } = ctx;
+  conv.messages.push({ role: "user", content: text });
+  conv.qcount = (conv.qcount || 0) + 1;
+  const profile = await userProfile(env, user.id);
+
+  const force = conv.qcount >= MAX_QUESTIONS
+    ? "This is the end of the interview. Give a short overall assessment (top strengths + the 2 biggest things to improve), then close warmly. Put [[END]] on the very last line."
+    : null;
+  let reply = await chat(env, conv, profile, force);
+
+  const done = /\[\[END\]\]/i.test(reply) || conv.qcount >= MAX_QUESTIONS;
+  reply = reply.replace(/\[\[END\]\]/gi, "").trim();
+  conv.messages.push({ role: "assistant", content: reply });
+  conv.messages = conv.messages.slice(-MAX_TURNS);
+  await save(ctx);
+
+  if (done) { await send(token, chatId, reply); await endInterview(ctx, true); }
+  else await send(token, chatId, reply, endKb());
+}
+
+async function endInterview(ctx, completed) {
+  const { env, token, chatId, user, conv } = ctx;
+  const wasActive = conv.stage === "interviewing" || conv.stage === "confirm" || conv.stage === "await_desc" || conv.stage === "await_title";
+  conv.stage = "menu";
+  conv.job = null;
+  conv.messages = [];
+  conv.qcount = 0;
+  await save(ctx);
+
+  if (!wasActive && !completed) { await showMenu(token, chatId, ctx.channel); return; }
+
+  const tz = await userTimezone(env, user.id);
+  const left = await remaining(env, user.id, user.plan, "interview", tz);
+  const head = completed ? "🏁 <b>Interview complete — great work!</b>" : "✖️ <b>Interview ended.</b>";
+
+  if (left <= 0 && (user.plan || "free").toLowerCase() !== "proplus") {
+    const { period } = metricLimit(user.plan, "interview");
+    const w = period === "week" ? "this week" : "today";
+    await send(token, chatId,
+      `${head}\n${RULE}\n` +
+      `That was your last interview ${w} on the <b>${planLabel(user.plan)}</b> plan.\n` +
+      `Upgrade to keep practicing — daily mocks on Starter/Pro, unlimited on Pro Plus. 👇`,
+      [[btnUrl("⭐ Upgrade my plan", ctx.dash)]]);
+  } else {
+    await send(token, chatId,
+      `${head}\n${RULE}\n${planLine(user.plan, left)}\nReady for another?`,
+      [[btn("🎤 New interview", "iv:conduct")]]);
+  }
+}
+
+async function wall(ctx, tz) {
+  const { user, token, chatId, dash } = ctx;
+  const { period } = metricLimit(user.plan, "interview");
+  const w = period === "week" ? "this week" : "today";
+  await send(token, chatId,
+    `🔒 <b>You've used your interview practice ${w}</b> on the <b>${planLabel(user.plan)}</b> plan.\n${RULE}\n` +
+    `To keep going, upgrade for more mock interviews — <b>daily</b> on Starter & Pro, <b>unlimited</b> on Pro Plus.`,
+    [[btnUrl("⭐ Upgrade my plan", dash)]]);
+}
+
+// --------------------------------------------------------------------------- //
+// UI helpers
+function freshConv() { return { stage: "menu", job: null, messages: [], qcount: 0 }; }
+function endKb() { return [[btn("✖️ End interview", "iv:end")]]; }
+function btn(text, data) { return { text, callback_data: data }; }
+function btnUrl(text, url) { return { text, url }; }
+function planLabel(plan) { return (PLAN_META[plan] || PLAN_META.free).label; }
+
+function planLine(plan, left) {
+  const { period } = metricLimit(plan, "interview");
+  const w = period === "week" ? "this week" : "today";
+  if (plan && plan.toLowerCase() === "proplus") return `👑 <b>Pro Plus</b> — unlimited interviews.`;
+  return `🎯 You're on the <b>${planLabel(plan)}</b> plan — <b>${left}</b> interview${left === 1 ? "" : "s"} remaining ${w}.`;
+}
+
+async function showMenu(token, chatId, channel, head) {
+  await send(token, chatId,
+    `${head || "👋 <b>AI Interview Coach</b>"}\n${RULE}\n` +
+    `I run realistic mock interviews for your target roles and coach you after every answer.\n\n` +
+    `Tap below to begin — I'll ask for the role, then we start.`,
+    [[btn("🎤 Conduct an interview", "iv:conduct")], [btnUrl("📢 Daily jobs & tips", `https://t.me/${channel}`)]]);
+}
+
+async function save(ctx) { await kvPut(ctx.env, `iv_conv:${ctx.chatId}`, ctx.conv); }
+
+async function userJobs(env, userId) {
+  return await all(env,
+    `SELECT jp.id, jp.title, jp.company, jp.description FROM user_jobs uj
+       JOIN job_pool jp ON jp.id = uj.job_id WHERE uj.user_id = ?
+      ORDER BY uj.first_seen DESC LIMIT 12`, userId);
+}
+async function userProfile(env, userId) {
+  const cfg = await one(env, "SELECT profile FROM configs WHERE user_id = ?", userId);
+  return cfg?.profile ? JSON.parse(cfg.profile) : {};
 }
 
 // --------------------------------------------------------------------------- //
@@ -120,13 +288,14 @@ async function chat(env, conv, profile, forceTask) {
   const job = conv.job;
   const sys =
     `You are an elite interview coach and mock interviewer — warm, sharp, human, like a great senior hiring manager crossed with a supportive mentor. ` +
-    (job ? `You are interviewing the candidate for: ${job.title} at ${job.company}. Role context: ${job.desc || ""}. ` : `Help the candidate practice interviews for their target roles. `) +
+    (job ? `You are interviewing the candidate for: ${job.title}${job.company ? " at " + job.company : ""}. Role context: ${job.desc || "(use the title)"}. ` : `Help the candidate practice interviews. `) +
     `Candidate background: ${JSON.stringify({ headline: profile.headline, skills: (profile.skills || []).slice(0, 20), summary: profile.professional_summary }).slice(0, 1500)}. ` +
-    `\n\nHow you behave (like a real ChatGPT-style conversation):\n` +
-    `- Ask ONE question at a time. Keep the flow natural.\n` +
-    `- After each answer: give brief honest FEEDBACK (what was strong, what was weak), then a concrete TIP to upgrade the answer (use STAR, add a real metric, be specific), then ask the next question.\n` +
-    `- Adapt to ANY instruction: harder, easier, behavioural, technical, "rate my last answer", "give me a model answer", "switch role", etc.\n` +
-    `- Be encouraging and concise. Never robotic or repetitive. Vary your wording.\n` +
+    `\n\nHow you behave:\n` +
+    `- Ask ONE question at a time. Keep it natural and progressive.\n` +
+    `- After each answer: brief honest FEEDBACK (strength + weakness), then a concrete TIP (STAR, a real metric, be specific), then the next question.\n` +
+    `- Run about ${MAX_QUESTIONS} questions total, then wrap up with an overall assessment.\n` +
+    `- When (and only when) the interview is finished, put [[END]] on the final line.\n` +
+    `- Be encouraging and concise. Never robotic or repetitive.\n` +
     `- Use simple Telegram HTML only: <b>bold</b>, <i>italic</i>. No markdown, no #, no *.`;
 
   const messages = [{ role: "system", content: sys }];
@@ -156,10 +325,13 @@ async function llm(env, messages, maxTokens) {
 }
 
 function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-function btnUrl(text, url) { return { text, url }; }
 async function send(token, chatId, text, keyboard) {
   if (!token) return;
   const body = { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true };
   if (keyboard) body.reply_markup = { inline_keyboard: keyboard };
   try { await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); } catch {}
+}
+async function answer(token, id, text) {
+  if (!token) return;
+  try { await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callback_query_id: id, text }) }); } catch {}
 }
