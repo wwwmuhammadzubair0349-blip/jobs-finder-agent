@@ -31,6 +31,11 @@ YOU MAY REWRITE ONLY: the summary, the skills list, and the bullets under each
 role. Job titles, companies, dates, education and all other facts are FIXED and
 are not part of your output.
 
+The profile is raw source material, not the final CV. For each job, produce a
+fresh tailored CV: remove irrelevant skills, keep the strongest JD-matching
+skills, and rewrite the summary and role bullets so the employer sees the
+candidate as a close match for THIS role.
+
 WRITE LIKE A REAL HUMAN (critical):
 - Plain, confident, specific. Vary sentence rhythm. No robotic symmetry.
 - BANNED words/phrases: leverage, spearheaded, passionate, dynamic,
@@ -47,6 +52,10 @@ WRITE LIKE A REAL HUMAN (critical):
 - Skills: 8–14 items, most job-relevant first, using the JD's exact phrasing
   where the candidate genuinely has that skill. Include only skills grounded in
   the candidate's own skills/tools/experience — never add what they lack.
+
+Remove unrelated/general skills. Include a skill only if it is grounded
+somewhere in the candidate material: skills, tools, role bullets, projects,
+certifications, or achievements.
 
 HONESTY IS ABSOLUTE: rephrase and re-emphasise, never fabricate."""
 
@@ -68,8 +77,8 @@ ROLES — rewrite ONLY the bullets for each (titles/companies/dates are fixed):
 
 Return a JSON object with EXACTLY these keys:
 {{
-  "summary": "2-4 line professional summary tailored to THIS job",
-  "skills": ["8-14 skills, most relevant first, JD keywords the candidate truly has"],
+  "summary": "2-4 line rewritten professional summary tailored to THIS job; do not copy the profile summary verbatim",
+  "skills": ["8-14 relevant skills only, JD-matched first, no unrelated skills"],
   "experience_bullets": [
     ["3-5 rewritten bullets for role 1"],
     ["3-5 rewritten bullets for role 2 (and so on, one array per role, same order)"]
@@ -107,12 +116,63 @@ def _static_sections(profile: dict) -> dict:
     }
 
 
+def _words(text: str) -> set[str]:
+    return {w for w in _re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]{2,}", (text or "").lower())}
+
+
+def _profile_text(profile: dict) -> str:
+    return json.dumps(profile, ensure_ascii=False).lower()
+
+
+def _job_text(job: dict) -> str:
+    return " ".join(str(job.get(k, "") or "") for k in ("title", "company", "location", "description")).lower()
+
+
+def _skill_score(skill: str, job_words: set[str], job_text: str) -> int:
+    s = str(skill or "").strip()
+    if not s:
+        return -1
+    sl = s.lower()
+    sw = _words(sl)
+    score = 0
+    if sl in job_text:
+        score += 8
+    score += 2 * len(sw & job_words)
+    return score
+
+
+def _tailored_skills(job: dict, profile: dict, limit: int = 12) -> list[str]:
+    skills = list(dict.fromkeys((profile.get("skills", []) or []) + (profile.get("tools", []) or [])))
+    jt = _job_text(job)
+    jw = _words(jt)
+    ranked = sorted(skills, key=lambda s: _skill_score(s, jw, jt), reverse=True)
+    matched = [s for s in ranked if _skill_score(s, jw, jt) > 0]
+    fill = [s for s in ranked if s not in matched]
+    return (matched + fill)[:limit]
+
+
+def _rank_bullets_for_job(bullets: list[str], job: dict, limit: int = 4) -> list[str]:
+    jt = _job_text(job)
+    jw = _words(jt)
+    clean = [b for b in bullets or [] if b]
+    ranked = sorted(clean, key=lambda b: _skill_score(b, jw, jt), reverse=True)
+    return ranked[:limit] or clean[:limit]
+
+
 def _fallback(job: dict, profile: dict) -> dict:
     name = profile.get("full_name", "")
+    skills = _tailored_skills(job, profile)
+    exp = []
+    for e in profile.get("experience", []) or []:
+        item = dict(e)
+        item["bullets"] = _rank_bullets_for_job(e.get("bullets") or [], job)
+        exp.append(item)
+    role = job.get("title") or profile.get("headline") or "the target role"
+    skill_line = ", ".join(skills[:5]) or profile.get("headline", "the candidate's core strengths")
     return {
-        "summary": profile.get("professional_summary", ""),
-        "skills": (profile.get("skills", []) or []) + (profile.get("tools", []) or []),
-        "experience": profile.get("experience", []),
+        "summary": f"{profile.get('headline', 'Professional')} aligned to {role}, with profile-backed experience in {skill_line}. Brings relevant strengths from the original profile while keeping every claim factual and role-specific.",
+        "skills": skills,
+        "experience": exp,
         **_static_sections(profile),
         "cover_letter": {
             "greeting": f"Dear Hiring Team at {job.get('company','')},",
@@ -169,15 +229,22 @@ def _guard_summary(summary: str, profile: dict) -> str:
 def _grounded_skills(candidate: list, profile: dict) -> list:
     own = [s.lower() for s in (profile.get("skills", []) or []) + (profile.get("tools", []) or [])]
     own_text = " ".join(own)
+    profile_text = _profile_text(profile)
     out = []
     for s in candidate or []:
         sl = str(s).lower().strip()
         if not sl:
             continue
-        ok = any(sl == o or sl in o or o in sl for o in own) or all(w in own_text for w in sl.split()[:2])
+        terms = _words(sl)
+        ok = (
+            any(sl == o or sl in o or o in sl for o in own)
+            or all(w in own_text for w in list(terms)[:2])
+            or (len(sl) >= 4 and sl in profile_text)
+            or (terms and all(w in profile_text for w in terms))
+        )
         if ok and s not in out:
             out.append(s)
-    return out or (profile.get("skills", []) or [])[:12]
+    return out
 
 
 # ---- de-AI-ify pass ---------------------------------------------------------- #
@@ -244,7 +311,7 @@ def tailor(job: dict, profile: dict) -> dict:
 
         if data.get("summary"):
             out["summary"] = _guard_summary(str(data["summary"]), profile)
-        out["skills"] = _grounded_skills(data.get("skills"), profile)
+        out["skills"] = _grounded_skills(data.get("skills"), profile) or base["skills"]
 
         # Merge rewritten bullets back into the FIXED role entries.
         rb = data.get("experience_bullets")

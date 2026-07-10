@@ -3,7 +3,7 @@ import { api } from "./api";
 import Login from "./Login";
 import Tour from "./Tour";
 import { Kpi, JobCard, Empty } from "./parts";
-import { ProfileEditor, SearchEditor, ScheduleEditor } from "./Editors";
+import { ProfileEditor, SearchEditor, ScheduleEditor, AutoApplyEditor } from "./Editors";
 import { IconToday, IconJobs, IconApps, IconProfile, IconSearch, IconClock, IconAlert, IconRun, IconRefresh, IconOut, IconSun, IconGlobe } from "./icons";
 
 const TABS = [
@@ -151,7 +151,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         {tab === "apps" && <Applications data={data} />}
         {tab === "profile" && (config ? <ProfileEditor key="p" initial={config.profile} onSave={saveConfig} /> : <Loading />)}
         {tab === "search" && (config ? <SearchEditor key="s" initial={config.search} onSave={saveConfig} /> : <Loading />)}
-        {tab === "schedule" && (config ? <ScheduleEditor key="c" initial={config.schedule} onSave={saveConfig} /> : <Loading />)}
+        {tab === "schedule" && (config ? <><ScheduleEditor key="c" initial={config.schedule} onSave={saveConfig} /><AutoApplyEditor key="aa" initial={config.auto_apply || {}} onSave={saveConfig} /></> : <Loading />)}
       </div>
 
       <nav className="tabbar">
@@ -207,6 +207,7 @@ const AGENT_LABELS = {
   render_cv: "📄 Designing the PDFs",
   send_telegram: "✈️ Sending to your Telegram",
   agent_analyst: "🧠 Preparing your brief",
+  applicant: "🤖 Auto-applying for you",
 };
 
 // Agent-team cards (user-facing). Link Checker & Publisher run in the
@@ -219,6 +220,7 @@ const AGENTS = [
   { key: "cl_writer", name: "Cover Letter Writer", emoji: "✉️" },
   { key: "render_cv", name: "Designer", emoji: "📄" },
   { key: "send_telegram", name: "Telegram", emoji: "✈️" },
+  { key: "applicant", name: "Applicant", emoji: "🤖" },
 ];
 
 function AgentTeam({ status, current }) {

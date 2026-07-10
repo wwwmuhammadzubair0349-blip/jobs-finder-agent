@@ -49,6 +49,8 @@ jobs:
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
       CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
       CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
+      # Decrypts users' stored Gmail app passwords for auto-apply (must match Pages AUTH_SECRET)
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
       # CV hosting (public job-cvs repo)
       CVS_DEPLOY_TOKEN: ${{ secrets.CVS_DEPLOY_TOKEN }}
       CVS_REPO: ${{ secrets.CVS_REPO }}

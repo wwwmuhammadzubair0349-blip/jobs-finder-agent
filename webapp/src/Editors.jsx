@@ -12,6 +12,77 @@ function SaveBar({ dirty, busy, onSave, saved }) {
   );
 }
 
+/* ---------------- Auto-apply (autopilot) ---------------- */
+export function AutoApplyEditor({ initial, onSave }) {
+  const [a, setA] = useState({
+    enabled: !!initial.enabled,
+    gmail_address: initial.gmail_address || "",
+    min_score: initial.min_score ?? 70,
+    daily_cap: initial.daily_cap ?? 10,
+  });
+  const [pw, setPw] = useState("");
+  const [hasPw, setHasPw] = useState(!!initial.has_password);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const set = (k, v) => { setA((o) => ({ ...o, [k]: v })); setDirty(true); setSaved(false); };
+
+  async function save() {
+    setBusy(true);
+    const payload = { ...a };
+    if (pw.trim()) payload.gmail_app_password = pw.trim();
+    try {
+      await onSave("auto_apply", payload);
+      if (pw.trim()) setHasPw(true);
+      setPw(""); setDirty(false); setSaved(true);
+    } finally { setBusy(false); }
+  }
+
+  const ready = a.gmail_address && (hasPw || pw.trim());
+
+  return (
+    <div className="fade">
+      <div className="card" style={{ borderColor: a.enabled ? "color-mix(in srgb, var(--ok) 45%, var(--hair))" : "var(--hair)" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <span style={{ fontSize: 22 }}>🤖</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>Auto-apply (autopilot)</div>
+            <div className="hint">When a strong match appears, we apply for you automatically — emailing your tailored CV + cover letter to the job's contact, or submitting standard application forms. From <b>your own Gmail</b>, so replies come straight to you.</div>
+          </div>
+        </div>
+
+        <label className="checkbox" style={{ margin: "14px 0 4px" }}>
+          <input type="checkbox" checked={a.enabled} onChange={(e) => set("enabled", e.target.checked)} />
+          <b>Enable auto-apply</b>
+        </label>
+        {a.enabled && !ready && <div className="hint" style={{ color: "var(--warn)" }}>Add your Gmail + app password below to start.</div>}
+
+        <div className="field" style={{ marginTop: 12 }}>
+          <label>Your Gmail address</label>
+          <input type="email" value={a.gmail_address} onChange={(e) => set("gmail_address", e.target.value)} placeholder="you@gmail.com" />
+        </div>
+
+        <div className="field">
+          <label>Gmail App Password {hasPw && <span style={{ color: "var(--ok)" }}>· saved ✓</span>}</label>
+          <input type="password" value={pw} onChange={(e) => { setPw(e.target.value); setDirty(true); setSaved(false); }} placeholder={hasPw ? "•••• saved — type to replace" : "16-character app password"} autoComplete="new-password" />
+          <div className="hint">
+            Not your normal password — a one-off code from Google.
+            <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer"> Create an app password →</a> (needs 2-Step Verification on). Stored encrypted; revoke anytime.
+          </div>
+        </div>
+
+        <div className="grid2">
+          <div className="field"><label>Only apply if match ≥</label><input type="number" min="0" max="100" value={a.min_score} onChange={(e) => set("min_score", parseInt(e.target.value || "70", 10))} /><div className="hint">Recommended 70+</div></div>
+          <div className="field"><label>Max applications / day</label><input type="number" min="1" max="50" value={a.daily_cap} onChange={(e) => set("daily_cap", parseInt(e.target.value || "10", 10))} /><div className="hint">Avoid over-applying</div></div>
+        </div>
+
+        <div className="hint" style={{ marginTop: 4 }}>You get a Telegram receipt for every application. Turn this off anytime — it's a kill switch.</div>
+      </div>
+      <SaveBar dirty={dirty} busy={busy} saved={saved} onSave={save} />
+    </div>
+  );
+}
+
 /* ---------------- Profile ---------------- */
 export function ProfileEditor({ initial, onSave }) {
   const [p, setP] = useState(initial);

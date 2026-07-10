@@ -2,6 +2,19 @@
 // POST /api/config { section, data } → validate + save one section
 import { one, run, DEFAULT_PROFILE, DEFAULT_SEARCH, DEFAULT_SETTINGS } from "../_shared/db.js";
 import { json, badRequest } from "../_shared/kv.js";
+import { encrypt } from "../_shared/enc.js";
+
+function safeAuto(settings) {
+  // Never expose the encrypted Gmail password to the browser.
+  const aa = settings.auto_apply || {};
+  return {
+    enabled: !!aa.enabled,
+    gmail_address: aa.gmail_address || "",
+    has_password: !!aa.gmail_app_password_enc,
+    min_score: aa.min_score ?? 70,
+    daily_cap: aa.daily_cap ?? 10,
+  };
+}
 
 async function loadConfig(env, userId) {
   const row = await one(env, "SELECT profile, search, settings FROM configs WHERE user_id = ?", userId);
@@ -17,7 +30,10 @@ async function loadConfig(env, userId) {
 
 export async function onRequestGet(context) {
   const cfg = await loadConfig(context.env, context.data.userId);
-  return json({ profile: cfg.profile, search: cfg.search, schedule: cfg.settings });
+  return json({
+    profile: cfg.profile, search: cfg.search, schedule: cfg.settings,
+    auto_apply: safeAuto(cfg.settings),
+  });
 }
 
 export async function onRequestPost(context) {
@@ -25,7 +41,7 @@ export async function onRequestPost(context) {
   let body;
   try { body = await context.request.json(); } catch { return badRequest("invalid json"); }
   const { section, data: payload } = body || {};
-  if (!["profile", "search", "schedule"].includes(section)) return badRequest("bad section");
+  if (!["profile", "search", "schedule", "auto_apply"].includes(section)) return badRequest("bad section");
   if (typeof payload !== "object" || payload === null) return badRequest("bad data");
 
   const cfg = await loadConfig(env, data.userId);
@@ -41,6 +57,22 @@ export async function onRequestPost(context) {
     settings.check_every_min = clampInt(payload.check_every_min, 5, 240, 30);
     settings.timezone = typeof payload.timezone === "string" ? payload.timezone : (settings.timezone || "UTC");
     settings.quiet_hours = validQuiet(payload.quiet_hours) ? payload.quiet_hours : null;
+  } else if (section === "auto_apply") {
+    const prev = settings.auto_apply || {};
+    const aa = {
+      enabled: !!payload.enabled,
+      gmail_address: (payload.gmail_address || "").trim().toLowerCase(),
+      min_score: clampInt(payload.min_score, 0, 100, 70),
+      daily_cap: clampInt(payload.daily_cap, 1, 50, 10),
+      gmail_app_password_enc: prev.gmail_app_password_enc || "",
+    };
+    // Only re-encrypt when the user typed a new password (16-char app password).
+    const pw = (payload.gmail_app_password || "").replace(/\s+/g, "");
+    if (pw && pw.length >= 12) {
+      aa.gmail_app_password_enc = await encrypt(pw, env.AUTH_SECRET || "");
+    }
+    if (payload.clear_password) aa.gmail_app_password_enc = "";
+    settings.auto_apply = aa;
   }
 
   await run(env,

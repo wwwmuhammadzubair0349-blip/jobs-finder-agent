@@ -239,9 +239,9 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
 
     quiet = _in_quiet(settings)
     to_process = []
-    # manual queue first (always)
+    # manual queue first (always) — user chose these, so no autopilot apply
     for q in queued_fn(u["id"]):
-        to_process.append({**q, "id": q["job_id"], "uj_id": q["uj_id"]})
+        to_process.append({**q, "id": q["job_id"], "uj_id": q["uj_id"], "_manual": True})
     # top-3 auto CV (only if connected + not quiet)
     if chat_id and not quiet:
         for j in new[:AUTO_CV_TOP_N]:
@@ -265,11 +265,33 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
             _agent("send_telegram")
             mark_sent(job["uj_id"], keys.get("cv", ""), keys.get("cover", ""), keys.get("txt", ""))
             sent += 1
+
+            # ---- Autopilot apply (auto-discovered jobs only) ----
+            if not job.get("_manual"):
+                _try_apply(u, settings, profile, job, cv_data, result, chat_id)
         except Exception as exc:
             log_issue("run_saas", f"process {job.get('title')}: {exc}", "warning")
     if sent:
         user_agents_update(u["id"], ["cv_writer", "cl_writer", "render_cv", "send_telegram"])
     return sent
+
+
+def _try_apply(u, settings, profile, job, cv_data, result, chat_id):
+    """Attempt guarded auto-apply; report via the user's Telegram."""
+    try:
+        from auto_apply import try_auto_apply
+        from send_telegram import send_message
+        set_activity("applicant", "auto-applying", job.get("title", ""))
+
+        def notify(text):
+            if chat_id:
+                send_message(text, chat_id=chat_id)
+
+        if try_auto_apply(u, settings, profile, job, cv_data, result, notify):
+            from saas_store import user_agents_update
+            user_agents_update(u["id"], ["applicant"])
+    except Exception as exc:
+        log_issue("run_saas", f"auto-apply {job.get('title')}: {exc}", "warning")
 
 
 def _finish(status: str) -> None:
