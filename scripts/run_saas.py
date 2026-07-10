@@ -180,10 +180,13 @@ def main_manual_only() -> None:
 
 
 def _process_manual_user(u, cfg, queued_fn, mark_sent, store_cv):
+    """On-demand CV/cover generation from the bot's 'Get CV'/'Get Cover Letter'
+    buttons or the dashboard. Generates ONCE, caches, and delivers the requested
+    document(s). Later taps reuse the cache — no extra LLM cost."""
     from agent_cv import tailor
     from render_cv import render
-    from send_telegram import send_job
-    from saas_store import user_agents_update
+    from send_telegram import send_prepared_cv, send_message
+    from saas_store import user_agents_update, save_cv_keys, set_job_status
 
     profile = cfg.get("profile", {}) or {}
     chat_id = u.get("telegram_chat_id")
@@ -191,8 +194,16 @@ def _process_manual_user(u, cfg, queued_fn, mark_sent, store_cv):
 
     for job in queued_fn(u["id"]):
         try:
+            which = (job.get("cv_request") or "both")
             job = {**job, "id": job["job_id"], "uj_id": job["uj_id"]}
             title = job.get("title", "")
+
+            # Already cached? Just deliver — no regeneration.
+            if job.get("cv_key") and job.get("cover_key"):
+                # (rare: pipeline picked up a queued job whose files already exist)
+                set_job_status(u["id"], job["id"], "sent")
+                continue
+
             set_activity("cv_writer", "writing CV & cover letter", title)
             cv_data = tailor(job, profile)
             _agent("cv_writer"); _agent("cl_writer")
@@ -201,11 +212,13 @@ def _process_manual_user(u, cfg, queued_fn, mark_sent, store_cv):
             _agent("render_cv")
             keys = store_cv(job["uj_id"], result.get("basename", "CV"),
                             result["cv_pdf"], result["cover_pdf"], result["cv_txt"])
+            save_cv_keys(u["id"], job["id"], keys.get("cv", ""), keys.get("cover", ""), keys.get("txt", ""))
+            set_job_status(u["id"], job["id"], "sent")
+
             set_activity("send_telegram", "sending to Telegram", title)
             if chat_id:
-                send_job(job, result, cv_data, chat_id=chat_id)
+                send_prepared_cv(job, result, cv_data, which=which, chat_id=chat_id)
             _agent("send_telegram")
-            mark_sent(job["uj_id"], keys.get("cv", ""), keys.get("cover", ""), keys.get("txt", ""))
             sent += 1
         except Exception as exc:
             log_issue("run_saas", f"manual process {job.get('title')}: {exc}", "warning")
@@ -238,74 +251,71 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
     user_agents_update(u["id"], ["collect_jobs", "agent_analyst", "rank_jobs"])
 
     quiet = _in_quiet(settings)
-    to_process = []
-    # manual queue first (always) — user chose these, so no autopilot apply
-    for q in queued_fn(u["id"]):
-        to_process.append({**q, "id": q["job_id"], "uj_id": q["uj_id"], "_manual": True})
-    # top-3 auto CV (only if connected + not quiet)
+    sent = 0
+
+    # New matches → lightweight job CARDS (no CV; user taps to generate on demand).
     if chat_id and not quiet:
         for j in new[:AUTO_CV_TOP_N]:
-            to_process.append({**j, "uj_id": f"{u['id'][:8]}-{j['id']}"[:120]})
+            try:
+                from send_telegram import send_job_card
+                send_job_card(j, chat_id=chat_id)
+                sent += 1
+                # Autopilot apply — generates the CV ONLY if there's somewhere to apply.
+                _try_apply(u, settings, profile, j, chat_id, store_cv)
+            except Exception as exc:
+                log_issue("run_saas", f"card {j.get('title')}: {exc}", "warning")
 
-    sent = 0
-    for job in to_process:
-        try:
-            title = job.get("title", "")
-            set_activity("cv_writer", "writing CV & cover letter", title)
-            cv_data = tailor(job, profile)
-            _agent("cv_writer"); _agent("cl_writer")
-            set_activity("render_cv", "rendering PDFs", title)
-            result = render(job, profile, cv_data, _OUTPUT)
-            _agent("render_cv")
-            keys = store_cv(job["uj_id"], result.get("basename", "CV"),
-                            result["cv_pdf"], result["cover_pdf"], result["cv_txt"])
-            set_activity("send_telegram", "sending to Telegram", title)
-            if chat_id:
-                send_job(job, result, cv_data, chat_id=chat_id)
-            _agent("send_telegram")
-            mark_sent(job["uj_id"], keys.get("cv", ""), keys.get("cover", ""), keys.get("txt", ""))
-            sent += 1
-
-            # ---- Autopilot apply (auto-discovered jobs only) ----
-            if not job.get("_manual"):
-                _try_apply(u, settings, profile, job, cv_data, result, chat_id)
-        except Exception as exc:
-            log_issue("run_saas", f"process {job.get('title')}: {exc}", "warning")
-    if sent:
-        user_agents_update(u["id"], ["cv_writer", "cl_writer", "render_cv", "send_telegram"])
+    # On-demand CV/cover requests (from bot buttons / dashboard) — generate + cache.
+    sent += _process_manual_user(u, cfg, queued_fn, mark_sent, store_cv)
     return sent
 
 
-def _try_apply(u, settings, profile, job, cv_data, result, chat_id):
-    """Guarded auto-apply. Full-auto (email/ATS form) when safe; otherwise
-    semi-auto 'ready to apply' for LinkedIn/Indeed etc. Reports via Telegram."""
+def _try_apply(u, settings, profile, job, chat_id, store_cv):
+    """Autopilot. Generates the tailored CV only when the job is actually
+    applicable (email / ATS form / LinkedIn-type site), caches it, then applies
+    or prepares a one-tap 'ready to apply'. Skips generation otherwise."""
     if not chat_id:
         return
     try:
-        from auto_apply import try_auto_apply, get_auto_settings, semi_auto_site
+        from auto_apply import (get_auto_settings, find_apply_email, semi_auto_site,
+                                 try_auto_apply)
+        from apply_forms import supported_ats
+        from agent_cv import tailor
+        from render_cv import render
         from send_telegram import send_message, send_ready_to_apply
-        from saas_store import user_agents_update, set_job_status
+        from saas_store import user_agents_update, set_job_status, save_cv_keys, mark_applied_via
 
         aa = get_auto_settings(settings)
-        if not aa["enabled"]:
+        if not aa["enabled"] or (job.get("match_score") or 0) < aa["min_score"]:
             return
-        set_activity("applicant", "auto-applying", job.get("title", ""))
+
+        email = find_apply_email(job.get("description", ""))
+        is_form = supported_ats(job.get("url", ""))
+        site = semi_auto_site(job.get("url", ""))
+        if not (email or is_form or site):
+            return  # nothing to apply to → no CV generated (saves tokens)
+
+        # Generate + cache the tailored CV (the user will want it either way).
+        uj_id = f"{u['id'][:8]}-{job['id']}"[:120]
+        set_activity("applicant", "preparing to apply", job.get("title", ""))
+        cv_data = tailor(job, profile)
+        result = render(job, profile, cv_data, _OUTPUT)
+        keys = store_cv(uj_id, result.get("basename", "CV"), result["cv_pdf"], result["cover_pdf"], result["cv_txt"])
+        save_cv_keys(u["id"], job["id"], keys.get("cv", ""), keys.get("cover", ""), keys.get("txt", ""))
 
         def notify(text):
             send_message(text, chat_id=chat_id)
 
-        # 1) Full auto — email / ATS form (safe, submitted for the user)
+        # 1) Full auto — email / ATS form
         if try_auto_apply(u, settings, profile, job, cv_data, result, notify):
+            mark_applied_via(u["id"], job["id"], "auto")
             user_agents_update(u["id"], ["applicant"])
             return
-
-        # 2) Semi-auto — LinkedIn/Indeed/etc.: prep everything, one-tap for them
-        if (job.get("match_score") or 0) >= aa["min_score"]:
-            site = semi_auto_site(job.get("url", ""))
-            if site:
-                send_ready_to_apply(job, result, site, chat_id=chat_id)
-                set_job_status(u["id"], job["id"], "ready")
-                user_agents_update(u["id"], ["applicant"])
+        # 2) Semi-auto — LinkedIn/Indeed/etc.
+        if site:
+            send_ready_to_apply(job, result, site, chat_id=chat_id)
+            set_job_status(u["id"], job["id"], "ready")
+            user_agents_update(u["id"], ["applicant"])
     except Exception as exc:
         log_issue("run_saas", f"auto-apply {job.get('title')}: {exc}", "warning")
 

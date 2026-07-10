@@ -112,11 +112,46 @@ def _apply_steps_text(job: dict, cv_data: dict) -> str:
 
 def _applied_keyboard(job: dict) -> dict:
     # callback_data ≤ 64 bytes; job id like "adzuna:abcd1234..." fits.
-    jid = (job.get("id") or job.get("url") or "")[:60]
+    jid = (job.get("id") or job.get("url") or "")[:58]
     return {"inline_keyboard": [[
         {"text": "✅ Mark as Applied", "callback_data": f"ap:{jid}"},
         {"text": "🔗 Open job", "url": job.get("url", "") or "https://t.me"},
     ]]}
+
+
+def _card_keyboard(job: dict) -> dict:
+    """Job card buttons — CV/Cover generate on demand (saves LLM tokens)."""
+    jid = (job.get("id") or "")[:58]
+    return {"inline_keyboard": [
+        [{"text": "📄 Get CV", "callback_data": f"cv:{jid}"},
+         {"text": "✉️ Get Cover Letter", "callback_data": f"cl:{jid}"}],
+        [{"text": "✅ Mark as Applied", "callback_data": f"ap:{jid}"},
+         {"text": "🔗 Open job", "url": job.get("url", "") or "https://t.me"}],
+    ]}
+
+
+def send_job_card(job: dict, chat_id: str | None = None) -> bool:
+    """Lightweight new-job alert — NO CV/cover attached. The user taps
+    'Get CV' / 'Get Cover Letter' to generate them on demand (cached after)."""
+    caption = _job_caption(job) + "\n\n📄 Tap <b>Get CV</b> or <b>Get Cover Letter</b> below — tailored to this job, ready in ~2 min (then saved for instant re-download)."
+    return send_message(caption, reply_markup=_card_keyboard(job), chat_id=chat_id)
+
+
+def send_prepared_cv(job: dict, files: dict, cv_data: dict | None = None,
+                     which: str = "both", chat_id: str | None = None) -> bool:
+    """Deliver the generated CV and/or cover letter after an on-demand request."""
+    title = job.get("title", "")
+    ok = True
+    if which in ("cv", "both") and files.get("cv_pdf"):
+        ok = send_document(Path(files["cv_pdf"]), caption=f"📄 Your tailored CV — {title}", chat_id=chat_id) and ok
+    if which in ("cl", "both") and files.get("cover_pdf"):
+        ok = send_document(Path(files["cover_pdf"]), caption=f"✉️ Your cover letter — {title}", chat_id=chat_id) and ok
+    if which in ("cv", "both") and files.get("cv_txt"):
+        ok = send_document(Path(files["cv_txt"]), caption="📋 Plain-text ATS CV (copy/paste)", chat_id=chat_id) and ok
+    steps = _apply_steps_text(job, cv_data or {})
+    if steps:
+        send_message(steps, chat_id=chat_id)
+    return ok
 
 
 def send_job(job: dict, files: dict, cv_data: dict | None = None, chat_id: str | None = None) -> bool:

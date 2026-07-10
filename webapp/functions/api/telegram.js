@@ -18,22 +18,42 @@ export async function onRequestPost(context) {
   const dash = env.DASHBOARD_URL || "https://jobs-finder-dashboard.pages.dev";
   const RULE = "──────────────";
 
-  // Applied button
+  // Button callbacks
   if (update.callback_query) {
     const cq = update.callback_query;
     const chatId = String(cq.message?.chat?.id || "");
-    if ((cq.data || "").startsWith("ap:")) {
-      const jobId = cq.data.slice(3);
-      const user = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
+    const data = cq.data || "";
+    const user = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
+
+    if (data.startsWith("ap:")) {
+      const jobId = data.slice(3);
       let done = false;
       if (user) {
         const r = await run(env,
-          "UPDATE user_jobs SET status='applied', applied_at=? WHERE user_id=? AND job_id=?",
+          "UPDATE user_jobs SET status='applied', applied_at=?, applied_via=COALESCE(applied_via,'manual') WHERE user_id=? AND job_id=?",
           new Date().toISOString(), user.id, jobId);
         done = (r.meta?.changes || 0) > 0;
       }
       await answer(token, cq.id, done ? "Marked as Applied ✅" : "Couldn't find that job");
-      if (cq.message) await editMarkup(token, chatId, cq.message.message_id, { inline_keyboard: [[{ text: "✅ Applied", callback_data: "noop" }]] });
+    } else if (data.startsWith("cv:") || data.startsWith("cl:")) {
+      const which = data.startsWith("cv:") ? "cv" : "cl";
+      const jobId = data.slice(3);
+      if (!user) { await answer(token, cq.id, "Connect your account first"); return json({ ok: true }); }
+      const uj = await one(env, "SELECT cv_key, cover_key, cv_request FROM user_jobs WHERE user_id=? AND job_id=?", user.id, jobId);
+      const cachedKey = which === "cv" ? uj?.cv_key : uj?.cover_key;
+      if (cachedKey) {
+        // Already generated — send instantly from KV, no pipeline needed.
+        await answer(token, cq.id, which === "cv" ? "Sending your CV…" : "Sending your cover letter…");
+        await sendKvDocument(env, token, chatId, cachedKey);
+      } else {
+        // Queue generation + kick off the fast manual-send workflow.
+        let req = which;
+        if (uj?.cv_request && uj.cv_request !== which) req = "both";
+        await run(env, "UPDATE user_jobs SET status='queued', cv_request=? WHERE user_id=? AND job_id=? AND status != 'applied'", req, user.id, jobId);
+        await answer(token, cq.id, "⏳ Preparing — arrives in ~2 min");
+        await dispatchManualSend(env);
+        await send(token, chatId, `⏳ <b>Preparing your ${which === "cv" ? "CV" : "cover letter"}</b> — tailored to this job. It'll arrive here in ~2 minutes, then it's saved for instant re-download.`);
+      }
     } else {
       await answer(token, cq.id, "");
     }
@@ -87,6 +107,39 @@ export async function onRequestPost(context) {
 }
 
 function btnUrl(text, url) { return { text, url }; }
+
+async function sendKvDocument(env, token, chatId, key) {
+  if (!token) return;
+  try {
+    const buf = await env.KV.get(key, { type: "arrayBuffer" });
+    if (!buf) { await send(token, chatId, "That file isn't ready yet — tap the button again in a moment."); return; }
+    const parts = key.split(":");        // cvfile:<basename>:<kind>:<uj_id>
+    const base = parts[1] || "document";
+    const kind = parts[2] || "cv";
+    const isTxt = kind === "txt";
+    const fname = `${base}_${kind === "cover" ? "CoverLetter" : "CV"}.${isTxt ? "txt" : "pdf"}`;
+    const form = new FormData();
+    form.append("chat_id", chatId);
+    form.append("caption", kind === "cover" ? "✉️ Your cover letter" : "📄 Your tailored CV");
+    form.append("document", new Blob([buf], { type: isTxt ? "text/plain" : "application/pdf" }), fname);
+    await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: "POST", body: form });
+  } catch {}
+}
+
+async function dispatchManualSend(env) {
+  if (!env.GITHUB_PAT || !env.CODE_REPO) return;
+  try {
+    await fetch(`https://api.github.com/repos/${env.CODE_REPO}/actions/workflows/manual-send.yml/dispatches`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.GITHUB_PAT}`, Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "jobs-finder",
+      },
+      body: JSON.stringify({ ref: "main" }),
+    });
+  } catch {}
+}
+
 async function send(token, chatId, text, keyboard) {
   if (!token) return;
   const body = { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true };

@@ -101,9 +101,20 @@ def add_user_job(user_id: str, job: dict) -> str:
 def queued_user_jobs(user_id: str) -> list[dict]:
     return query(
         """SELECT uj.id AS uj_id, uj.job_id, jp.title, jp.company, jp.location, jp.remote, jp.salary,
-                  jp.posted_at, jp.url, jp.source, jp.description, uj.match_score, uj.why
+                  jp.posted_at, jp.url, jp.source, jp.description, uj.match_score, uj.why,
+                  uj.cv_request, uj.cv_key, uj.cover_key
              FROM user_jobs uj JOIN job_pool jp ON jp.id = uj.job_id
             WHERE uj.user_id = ? AND uj.status = 'queued'""", [user_id])
+
+
+def save_cv_keys(user_id: str, job_id: str, cv_key: str, cover_key: str, cv_txt_key: str) -> None:
+    execute(
+        "UPDATE user_jobs SET cv_key=?, cover_key=?, cv_txt_key=?, cv_request=NULL WHERE user_id=? AND job_id=?",
+        [cv_key, cover_key, cv_txt_key, user_id, job_id])
+
+
+def mark_applied_via(user_id: str, job_id: str, via: str) -> None:
+    execute("UPDATE user_jobs SET applied_via=? WHERE user_id=? AND job_id=?", [via, user_id, job_id])
 
 
 def set_job_status(user_id: str, job_id: str, status: str) -> None:

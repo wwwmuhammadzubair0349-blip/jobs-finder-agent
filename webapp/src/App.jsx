@@ -356,17 +356,20 @@ function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile
   const total = allJobs.length;
   const todayJobs = allJobs.filter((j) => withinHours(j.first_seen || j.sent_at, 24));
   const appliedJobs = allJobs.filter((j) => eff(j) === "applied");
+  const autoJobs = allJobs.filter((j) => j.applied_via === "auto");
   const interviewJobs = allJobs.filter((j) => eff(j) === "interview");
 
   const KPIS = [
     { id: "total", value: total, label: "Total jobs" },
     { id: "today", value: todayJobs.length, label: "Found today" },
     { id: "applied", value: appliedJobs.length, label: "Applied" },
+    { id: "auto", value: autoJobs.length, label: "🤖 Auto-applied" },
     { id: "interviews", value: interviewJobs.length, label: "Interviews" },
   ];
-  const lists = { total: allJobs, today: todayJobs, applied: appliedJobs, interviews: interviewJobs };
-  const shown = (lists[filter] || []).slice(0, 60);
-  const titleMap = { total: "All jobs", today: "Found today", applied: "Applied", interviews: "Interviews" };
+  const lists = { total: allJobs, today: todayJobs, applied: appliedJobs, auto: autoJobs, interviews: interviewJobs };
+  const full = lists[filter] || [];
+  const shown = full.slice(0, 60);
+  const titleMap = { total: "All my jobs", today: "Found today", applied: "Applied", auto: "Auto-applied", interviews: "Interviews" };
 
   return (
     <div className="fade">
@@ -386,7 +389,7 @@ function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile
 
       <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} />
 
-      <p className="section-title">{titleMap[filter]} · {shown.length}</p>
+      <p className="section-title">{titleMap[filter]} · {full.length}{full.length > shown.length ? ` (showing ${shown.length})` : ""}</p>
       {shown.length === 0
         ? (!complete
             ? <ProfileCta goProfile={goProfile} />
@@ -553,13 +556,14 @@ function AllJobs({ data, onApp, onSend, onShare, complete, goProfile, onRun }) {
 function PoolTab({ targetSlug, clearTarget, onShare }) {
   const [jobs, setJobs] = useState(null);
   const [q, setQ] = useState("");
+  // Server-side search across the whole pool (thousands), debounced.
   useEffect(() => {
     let live = true;
-    (async () => {
+    const t = setTimeout(async () => {
       try {
-        const r = await api.pool();
+        const r = await api.pool(q);
         let list = r.jobs || [];
-        if (targetSlug) {
+        if (targetSlug && !q) {
           let hit = list.find((j) => j.slug === targetSlug);
           if (!hit) {
             const single = await api.pool("", targetSlug);
@@ -571,17 +575,17 @@ function PoolTab({ targetSlug, clearTarget, onShare }) {
         }
         if (live) setJobs(list);
       } catch { if (live) setJobs([]); }
-    })();
-    return () => { live = false; };
-  }, [targetSlug]);
+    }, q ? 350 : 0);
+    return () => { live = false; clearTimeout(t); };
+  }, [targetSlug, q]);
 
   if (!jobs) return <Loading />;
-  const filtered = jobs.filter((j) => `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase()));
+  const filtered = jobs;
 
   return (
     <div className="fade">
-      <div className="field"><input placeholder="Search all discovered jobs…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-      <p className="section-title">Every job we've discovered · {filtered.length}</p>
+      <div className="field"><input placeholder="Search all discovered jobs (type to search thousands)…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+      <p className="section-title">{q ? `Results · ${filtered.length}` : `Latest discovered jobs · showing ${filtered.length}`}</p>
       {filtered.length === 0 ? <Empty icon="🌍" title="Nothing found" sub="Try a different search." /> :
         <div className="job-list">
           {filtered.map((j) => (
