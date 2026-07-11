@@ -220,7 +220,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} onSeeAll={() => setTab("jobs")} onInterview={openInterview} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} onSeeAll={() => setTab("jobs")} onInterview={openInterview} autoApplyOn={!!config?.auto_apply?.enabled} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
         {tab === "jobs" && <MyJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} onInterview={openInterview} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
@@ -448,7 +448,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
   );
 }
 
-function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, reloadMe, complete, goProfile, onRun, onUpgrade, onManage, onSeeAll }) {
+function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, reloadMe, complete, goProfile, onRun, onUpgrade, onManage, onSeeAll, autoApplyOn }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -505,7 +505,7 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, 
         ))}
       </div>
 
-      <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} />
+      <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} autoApplyOn={autoApplyOn} />
 
       <div className={`dash-grid${showRail ? "" : " norail"}`}>
         <div className="dash-main">
@@ -533,7 +533,7 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, 
 }
 
 // Compact AI-team strip — tidy chips, live pulse when working.
-function AgentGrid({ status, current, running }) {
+function AgentGrid({ status, current, running, autoApplyOn }) {
   const byName = Object.fromEntries((status || []).map((s) => [s.name, s]));
   const anyActive = AGENTS.some((a) => { const s = byName[a.key]; return s?.last_run && (Date.now() - new Date(s.last_run).getTime()) < 45000; });
   return (
@@ -548,10 +548,12 @@ function AgentGrid({ status, current, running }) {
           const ms = s?.last_run ? (Date.now() - new Date(s.last_run).getTime()) : Infinity;
           const active = ms < 45000;
           const recent = ms < 3600000;
-          const state = active || recent ? "green" : s?.state === "red" ? "red" : (s?.state || "gray");
+          const forceOn = a.key === "applicant" && autoApplyOn;   // auto-apply enabled → live
+          const state = forceOn || active || recent ? "green" : s?.state === "red" ? "red" : (s?.state || "gray");
           const dot = state === "green" ? "var(--ok)" : state === "red" ? "var(--err)" : state === "yellow" ? "var(--warn)" : "var(--hair-strong)";
+          const title = forceOn ? "Auto-apply is ON" : active ? "Working now" : s?.last_run ? `Active ${timeAgo(s.last_run)}` : "Ready";
           return (
-            <div key={a.key} className={`ai-chip${active ? " active" : ""}`} title={active ? "Working now" : s?.last_run ? `Active ${timeAgo(s.last_run)}` : "Ready"}>
+            <div key={a.key} className={`ai-chip${active || forceOn ? " active" : ""}`} title={title}>
               <span className="ai-chip-ico">{a.emoji}</span>
               <span className="ai-chip-name">{a.name}</span>
               <span className="status-dot" style={{ background: dot, width: 7, height: 7 }} />
@@ -770,9 +772,10 @@ function ProfileTab({ config, onSave, plan, planData, onUpgrade, onManage }) {
   const [sub, setSub] = useState("personal");
   return (
     <div className="fade">
-      <div className="seg" style={{ maxWidth: 560 }}>
+      <div className="seg" style={{ maxWidth: 640 }}>
         <button className={sub === "personal" ? "on" : ""} onClick={() => setSub("personal")}>Personal info</button>
         <button className={sub === "prefs" ? "on" : ""} onClick={() => setSub("prefs")}>Preferences</button>
+        <button className={sub === "auto" ? "on" : ""} onClick={() => setSub("auto")}>Auto-apply</button>
         <button className={sub === "sub" ? "on" : ""} onClick={() => setSub("sub")}>Subscription</button>
       </div>
       {sub === "personal" && <ProfileEditor key="p" initial={config.profile} onSave={onSave} />}
@@ -782,10 +785,9 @@ function ProfileTab({ config, onSave, plan, planData, onUpgrade, onManage }) {
           <SearchEditor initial={config.search} onSave={onSave} plan={plan} />
           <p className="section-title" style={{ marginTop: 22 }}>⏰ Schedule</p>
           <ScheduleEditor initial={config.schedule} onSave={onSave} />
-          <p className="section-title" style={{ marginTop: 22 }}>🤖 Auto-apply</p>
-          <AutoApplyEditor initial={config.auto_apply || {}} onSave={onSave} plan={plan} />
         </div>
       )}
+      {sub === "auto" && <AutoApplyEditor key="aa" initial={config.auto_apply || {}} onSave={onSave} plan={plan} />}
       {sub === "sub" && (
         <div key="sub">
           <p className="section-title">👑 Plan, limits & billing</p>

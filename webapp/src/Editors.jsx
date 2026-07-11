@@ -235,22 +235,19 @@ export function ProfileEditor({ initial, onSave }) {
 const ALL_SOURCES = ["remotive", "remoteok", "adzuna", "jooble", "apify"];
 
 export function SearchEditor({ initial, onSave, plan = "free" }) {
+  const maxCountries = limitFor(plan, "countries");
+  // Source of truth for country selection = a Set of country codes. If the
+  // saved selection exceeds the current plan's limit (e.g. after a downgrade),
+  // trim it and prompt the user to save.
+  const initAll = (initial.countries && initial.countries.length) ? initial.countries : (initial.adzuna_countries || []);
+  const overLimit = initAll.length > maxCountries;
   const [s, setS] = useState(initial);
-  // Source of truth for country selection = a Set of country codes.
-  const initSel = (initial.countries && initial.countries.length) ? initial.countries : (initial.adzuna_countries || []);
-  const [sel, setSel] = useState(new Set(initSel));
-  const [dirty, setDirty] = useState(false);
+  const [sel, setSel] = useState(new Set(initAll.slice(0, maxCountries)));
+  const [dirty, setDirty] = useState(overLimit);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [nudge, setNudge] = useState("");
+  const [nudge, setNudge] = useState(overLimit ? `Your plan allows ${maxCountries} ${maxCountries === 1 ? "country" : "countries"} — extras were removed. Save to apply.` : "");
   const set = (k, v) => { setS((o) => ({ ...o, [k]: v })); setDirty(true); setSaved(false); };
-  const toggleSource = (src) => {
-    const cur = new Set(s.sources || []);
-    cur.has(src) ? cur.delete(src) : cur.add(src);
-    set("sources", ALL_SOURCES.filter((x) => cur.has(x)));
-  };
-
-  const maxCountries = limitFor(plan, "countries");
   function addCountry(c) {
     if (!c || sel.has(c)) return;
     if (sel.size >= maxCountries) {
