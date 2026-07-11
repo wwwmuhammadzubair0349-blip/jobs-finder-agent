@@ -16,15 +16,33 @@ const FEATURES = [
   { icon: "📊", t: "One clean dashboard", d: "Track matches, applications and your pipeline in one place." },
 ];
 
+const STATS = [
+  { v: "24/7", l: "Always searching" },
+  { v: "6+", l: "Job sources" },
+  { v: "60s", l: "CV per job" },
+  { v: "Free", l: "To start" },
+];
+
+const FAQ = [
+  { q: "Is it really free?", a: "Yes — the Free plan searches jobs, sends alerts and prepares documents at no cost, no credit card. Upgrade only if you want more each day." },
+  { q: "How does it write my CV?", a: "It takes your profile and tailors an ATS-friendly CV + cover letter to each specific job — matching keywords and highlighting the right experience." },
+  { q: "Is auto-apply safe?", a: "It's opt-in and sends from your own email, within daily limits you control. You review everything, and can turn it off anytime." },
+  { q: "Do I need Telegram?", a: "It's the easiest way to receive jobs and documents on your phone, but you can also use the web dashboard for everything." },
+  { q: "Can I cancel anytime?", a: "Absolutely. Cancel in one click — you keep your plan until the end of the period, then move to Free. No lock-in." },
+];
+
 export default function Landing({ onAuth }) {
   return (
     <div className="lp">
       <header className="lp-nav">
         <a className="lp-brand" href="/"><span className="brand-mark sm">JF</span>Jobs Finder<span className="grad-dot">.</span></a>
-        <span style={{ flex: 1 }} />
-        <a className="lp-navlink" href="/jobs">Jobs</a>
-        <a className="lp-navlink" href="#pricing">Pricing</a>
-        <a className="lp-navlink" href="/contact">Contact</a>
+        <nav className="lp-nav-links">
+          <a className="lp-navlink" href="/jobs">Jobs</a>
+          <a className="lp-navlink" href="#how">How it works</a>
+          <a className="lp-navlink" href="#pricing">Pricing</a>
+          <a className="lp-navlink" href="/contact">Contact</a>
+        </nav>
+        <span className="lp-nav-sp" />
         <button className="btn ghost sm" onClick={() => onAuth("login")}>Log in</button>
         <button className="btn primary sm" onClick={() => onAuth("signup")}>Get started</button>
       </header>
@@ -32,20 +50,52 @@ export default function Landing({ onAuth }) {
       {/* Hero */}
       <section className="lp-hero">
         <div className="lp-aurora a1" /><div className="lp-aurora a2" />
-        <div className="lp-hero-in">
-          <div className="lp-badge">🚀 Your job hunt, automated</div>
-          <h1 className="lp-h1">Stop scrolling job boards.<br /><span className="grad-text">Let agents do the hunt.</span></h1>
-          <p className="lp-sub">Jobs Finder searches the web 24/7, writes a tailored CV &amp; cover letter for every match, and sends them to your Telegram — while you get on with your day.</p>
-          <div className="lp-cta">
-            <button className="btn primary big" onClick={() => onAuth("signup")}>Start free →</button>
-            <a className="btn ghost big" href="/jobs">Browse jobs</a>
+        <div className="lp-hero-grid">
+          <div className="lp-hero-copy">
+            <div className="lp-badge">🚀 Your job hunt, on autopilot</div>
+            <h1 className="lp-h1">Stop scrolling job boards.<br /><span className="grad-text">Let agents do the hunt.</span></h1>
+            <p className="lp-sub">Jobs Finder searches the web 24/7, writes a tailored CV &amp; cover letter for every match, and sends them to your Telegram — while you get on with your day.</p>
+            <div className="lp-cta">
+              <button className="btn primary lp-btn" onClick={() => onAuth("signup")}>Start free →</button>
+              <a className="btn ghost lp-btn" href="/jobs">Browse jobs</a>
+            </div>
+            <div className="lp-trust">🔒 Free to start · No credit card · 2-minute setup</div>
+            <div className="lp-stats">
+              {STATS.map((s) => (
+                <div className="lp-stat" key={s.l}><div className="lp-stat-v">{s.v}</div><div className="lp-stat-l">{s.l}</div></div>
+              ))}
+            </div>
           </div>
-          <div className="lp-trust">🔒 Free to start · No credit card · 2-minute setup</div>
+
+          {/* Product preview */}
+          <div className="lp-art" aria-hidden="true">
+            <div className="lp-art-panel">
+              <div className="lp-mock lp-mock-job">
+                <div className="lp-mock-top">
+                  <div className="lp-mock-logo">TC</div>
+                  <div style={{ flex: 1 }}>
+                    <div className="lp-mock-title">Senior Electrical Engineer</div>
+                    <div className="lp-mock-sub">TechCorp · Remote · $95k</div>
+                  </div>
+                  <div className="lp-ring"><span>92</span></div>
+                </div>
+                <div className="lp-mock-tags"><span>🌍 Remote</span><span>⚡ MEP</span><span>Adzuna</span></div>
+                <div className="lp-mock-actions"><span className="lp-mock-btn primary">📄 CV ready</span><span className="lp-mock-btn">✉️ Cover</span></div>
+              </div>
+              <div className="lp-mock lp-mock-tg">
+                <span className="lp-tg-ico">✈️</span>
+                <div><b>New match sent</b><div className="lp-mock-sub">Tailored CV &amp; cover letter attached</div></div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
+      {/* Stats-free divider trust bar */}
+      <div className="lp-strap">Trusted to search Indeed · LinkedIn · Adzuna · Jooble · RemoteOK &amp; more</div>
+
       {/* How it works */}
-      <section className="lp-section">
+      <section className="lp-section" id="how">
         <p className="lp-eyebrow">How it works</p>
         <h2 className="lp-h2">From profile to interview-ready in minutes</h2>
         <div className="lp-steps">
@@ -93,17 +143,34 @@ export default function Landing({ onAuth }) {
         <p className="lp-fineprint">Prices in USD. Cancel anytime · upgrades are prorated · downgrades apply at period end.</p>
       </section>
 
+      {/* FAQ */}
+      <section className="lp-section" id="faq">
+        <p className="lp-eyebrow">FAQ</p>
+        <h2 className="lp-h2">Good questions, answered</h2>
+        <div className="lp-faq">
+          {FAQ.map((f) => (
+            <details className="lp-faq-item" key={f.q}>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
       {/* Final CTA */}
-      <section className="lp-final">
-        <h2>Your next job is already out there.</h2>
-        <p>Let your agents find it — and write the CV — while you sleep.</p>
-        <button className="btn big" onClick={() => onAuth("signup")}>Create my free account →</button>
+      <section className="lp-section">
+        <div className="lp-final">
+          <div className="lp-aurora a1" style={{ opacity: 0.4 }} />
+          <h2>Your next job is already out there.</h2>
+          <p>Let your agents find it — and write the CV — while you sleep.</p>
+          <button className="btn lp-btn lp-final-btn" onClick={() => onAuth("signup")}>Create my free account →</button>
+        </div>
       </section>
 
       <footer className="lp-foot">
         <div className="lp-foot-in">
-          <span>© {new Date().getFullYear()} Jobs Finder</span>
-          <span style={{ flex: 1 }} />
+          <a className="lp-brand" href="/" style={{ fontSize: 15 }}><span className="brand-mark sm">JF</span>Jobs Finder<span className="grad-dot">.</span></a>
+          <span className="lp-nav-sp" />
           <a href="/jobs">Jobs</a>
           <a href="/contact">Contact</a>
           <a href="/privacy">Privacy</a>
