@@ -787,6 +787,33 @@ select.status {
 /* Seg sub-tabs get a touch of brand */
 .seg button.on { color: var(--ink); }
 
+/* ---- Today: branded hero + bold KPI cards ------------------------------------ */
+.dash-hero {
+  position: relative; overflow: hidden; border-radius: 20px; padding: 22px 24px; margin-bottom: 16px;
+  color: #fff; background: linear-gradient(120deg, #4f46e5 0%, #7c3aed 55%, #a855f7 100%);
+  box-shadow: 0 14px 38px color-mix(in srgb, var(--accent) 36%, transparent);
+}
+.dash-hero::before { content: ""; position: absolute; width: 280px; height: 280px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); filter: blur(56px); top: -130px; right: -50px; pointer-events: none; }
+.dash-hero::after { content: ""; position: absolute; width: 200px; height: 200px; border-radius: 50%; background: rgba(168, 85, 247, 0.5); filter: blur(60px); bottom: -120px; left: 20%; pointer-events: none; }
+.dash-hero-in { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.dash-hi { font-family: var(--display); font-weight: 800; font-size: clamp(21px, 3vw, 27px); letter-spacing: -0.6px; }
+.dash-hero-sub { color: rgba(255, 255, 255, 0.88); font-size: 14px; margin-top: 5px; }
+.dash-hero-btn { background: #fff; color: #5228c4; border: 0; font-weight: 700; padding: 11px 18px; }
+.dash-hero-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22); border: 0; }
+
+.kpi2 {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 1px; text-align: left;
+  background: var(--surface); border: 1px solid var(--hair); border-radius: 16px; padding: 15px 16px;
+  box-shadow: var(--shadow); cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+@media (hover: hover) { .kpi2:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--hair-strong); } }
+.kpi2-ico { font-size: 18px; line-height: 1; }
+.kpi2-v { font-family: var(--display); font-size: 29px; font-weight: 800; letter-spacing: -0.9px; line-height: 1.05; margin-top: 8px; }
+.kpi2-l { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.kpi2.on { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 42%, transparent); }
+.kpi2.on .kpi2-l { color: rgba(255, 255, 255, 0.88); }
+.kpi2.on::after { content: ""; position: absolute; width: 120px; height: 120px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); filter: blur(30px); top: -50px; right: -30px; }
+
 /* ---- 2K / 4K scaling: crisp at any resolution ---------------------------------------------------- */
 @media (min-width: 2200px) { body { zoom: 1.25; } }
 @media (min-width: 3200px) { body { zoom: 1.6; } }

@@ -444,14 +444,16 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, com
   const interviewJobs = allJobs.filter((j) => eff(j) === "interview");
 
   const KPIS = [
-    { id: "total", value: total, label: "Total jobs" },
-    { id: "today", value: todayJobs.length, label: "Found today" },
-    { id: "applied", value: appliedJobs.length, label: "Applied" },
-    { id: "auto", value: autoJobs.length, label: "🤖 Auto-applied" },
-    { id: "saved", value: savedJobs.length, label: "⭐ Saved" },
-    { id: "ready", value: readyJobs.length, label: "📄 Ready docs" },
-    { id: "interviews", value: interviewJobs.length, label: "Interviews" },
+    { id: "total", value: total, label: "Total jobs", icon: "📊" },
+    { id: "today", value: todayJobs.length, label: "Found today", icon: "✨" },
+    { id: "applied", value: appliedJobs.length, label: "Applied", icon: "✅" },
+    { id: "auto", value: autoJobs.length, label: "Auto-applied", icon: "🤖" },
+    { id: "saved", value: savedJobs.length, label: "Saved", icon: "⭐" },
+    { id: "ready", value: readyJobs.length, label: "Ready docs", icon: "📄" },
+    { id: "interviews", value: interviewJobs.length, label: "Interviews", icon: "🎤" },
   ];
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
   const lists = { total: allJobs, today: todayJobs, applied: appliedJobs, auto: autoJobs, saved: savedJobs, ready: readyJobs, interviews: interviewJobs };
   const full = lists[filter] || [];
   const shown = full.slice(0, 60);
@@ -459,12 +461,22 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, com
 
   return (
     <div className="fade">
+      <div className="dash-hero">
+        <div className="dash-hero-in">
+          <div className="dash-hero-copy">
+            <div className="dash-hi">{greet} 👋</div>
+            <div className="dash-hero-sub">{todayJobs.length} new match{todayJobs.length === 1 ? "" : "es"} today · {total} in your pipeline{savedJobs.length ? ` · ${savedJobs.length} saved` : ""}</div>
+          </div>
+          <button className="btn dash-hero-btn" onClick={onRun}>▶ Run search now</button>
+        </div>
+      </div>
+
       <div className="kpis">
         {KPIS.map((k) => (
-          <button key={k.id} className="kpi" onClick={() => setFilter(k.id)}
-            style={{ textAlign: "left", cursor: "pointer", ...(filter === k.id ? { borderColor: "var(--accent)", boxShadow: "0 0 0 2px var(--accent-weak)" } : {}) }}>
-            <div className="v num">{k.value}</div>
-            <div className="l">{k.label}</div>
+          <button key={k.id} className={`kpi2${filter === k.id ? " on" : ""}`} onClick={() => setFilter(k.id)}>
+            <span className="kpi2-ico">{k.icon}</span>
+            <span className="kpi2-v num">{k.value}</span>
+            <span className="kpi2-l">{k.label}</span>
           </button>
         ))}
       </div>
