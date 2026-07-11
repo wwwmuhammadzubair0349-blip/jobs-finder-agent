@@ -11,7 +11,7 @@ export async function onRequestGet(context) {
 
   const rows = await all(env,
     `SELECT uj.id, uj.job_id, uj.match_score, uj.why, uj.status, uj.first_seen, uj.sent_at, uj.applied_at,
-            uj.cv_key, uj.cover_key, uj.cv_txt_key, uj.applied_via,
+            uj.cv_key, uj.cover_key, uj.cv_txt_key, uj.applied_via, uj.saved,
             jp.title, jp.company, jp.location, jp.remote, jp.salary, jp.posted_at, jp.url, jp.source, jp.description, jp.slug
        FROM user_jobs uj JOIN job_pool jp ON jp.id = uj.job_id
       WHERE uj.user_id = ?
@@ -21,7 +21,7 @@ export async function onRequestGet(context) {
     id: r.job_id, uj_id: r.id, slug: r.slug, title: r.title, company: r.company, location: r.location,
     remote: !!r.remote, salary: r.salary, posted_at: r.posted_at, url: r.url, source: r.source,
     description: r.description, match_score: r.match_score, why: r.why, status: r.status,
-    applied_via: r.applied_via,
+    applied_via: r.applied_via, saved: !!r.saved,
     first_seen: r.first_seen, sent_at: r.sent_at, applied_at: r.applied_at,
     cv_url: r.cv_key ? `/api/cv?k=${encodeURIComponent(r.cv_key)}` : null,
     cover_url: r.cover_key ? `/api/cv?k=${encodeURIComponent(r.cover_key)}` : null,

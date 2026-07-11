@@ -713,6 +713,42 @@ select.status {
 }
 @media (min-width: 1500px) { .dash-main .job-list { grid-template-columns: 1fr 1fr; } }
 
+/* ---- Premium job cards + details modal --------------------------------------- */
+.jobcard.clickable { cursor: pointer; }
+.jc-head { display: flex; gap: 11px; align-items: flex-start; flex: 1; min-width: 0; }
+.jc-side { display: flex; align-items: center; gap: 6px; }
+.jc-mono {
+  width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center;
+  font-family: var(--display); font-weight: 800; font-size: 15px; color: #fff; background: var(--grad);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.jc-mono.lg { width: 52px; height: 52px; font-size: 18px; border-radius: 14px; }
+.save-star {
+  border: none; background: none; cursor: pointer; font-size: 20px; line-height: 1;
+  color: var(--hair-strong); padding: 4px; border-radius: 8px; transition: transform 0.15s ease, color 0.15s ease;
+}
+.save-star:hover { color: var(--warn); transform: scale(1.12); }
+.save-star.on { color: #f5b301; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip-btn {
+  border: 1px solid var(--hair-strong); background: var(--surface); color: var(--ink-2);
+  padding: 7px 13px; border-radius: 999px; font-size: 13px; font-weight: 550; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.chip-btn:hover { border-color: var(--accent); }
+.chip-btn.on { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 650; }
+
+.modal.jobdetail { max-width: 680px; }
+.jd-head { display: flex; align-items: flex-start; gap: 12px; }
+.jd-title { font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: -0.3px; line-height: 1.2; text-wrap: balance; }
+.jd-desc {
+  white-space: pre-wrap; color: var(--ink-2); font-size: 14px; line-height: 1.65; margin: 16px 0;
+  max-height: 44vh; overflow: auto; padding: 14px; background: var(--surface-2); border: 1px solid var(--hair); border-radius: 12px;
+}
+.jd-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.jd-track { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hair); }
+
 /* ---- 2K / 4K scaling: crisp at any resolution ---------------------------------------------------- */
 @media (min-width: 2200px) { body { zoom: 1.25; } }
 @media (min-width: 3200px) { body { zoom: 1.6; } }

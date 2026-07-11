@@ -23,6 +23,7 @@ export const api = {
   setApplication: (entry) => req("/application", { method: "POST", body: JSON.stringify(entry) }),
   runNow: () => req("/run", { method: "POST" }),
   sendJob: (job) => req("/send-job", { method: "POST", body: JSON.stringify({ job_id: job.id }) }),
+  saveJob: (jobId, saved) => req("/save-job", { method: "POST", body: JSON.stringify({ job_id: jobId, saved }) }),
   regenCode: () => req("/code", { method: "POST" }),
   // billing
   checkout: (plan) => req("/checkout", { method: "POST", body: JSON.stringify({ plan }) }),

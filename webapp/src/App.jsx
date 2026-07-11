@@ -3,7 +3,7 @@ import { api } from "./api";
 import Login from "./Login";
 import Landing from "./Landing";
 import Tour from "./Tour";
-import { Kpi, JobCard, Empty } from "./parts";
+import { Kpi, JobCard, JobDetail, Empty } from "./parts";
 import { ProfileEditor, SearchEditor, ScheduleEditor, AutoApplyEditor } from "./Editors";
 import { PlanBadge, UsageMeters, PricingModal } from "./Billing";
 import { IconToday, IconJobs, IconApps, IconProfile, IconSearch, IconClock, IconAlert, IconRun, IconRefresh, IconOut, IconSun, IconGlobe } from "./icons";
@@ -12,10 +12,7 @@ const TABS = [
   { id: "today", label: "Today", icon: IconToday },
   { id: "jobs", label: "My jobs", icon: IconJobs },
   { id: "pool", label: "All jobs", icon: IconGlobe },
-  { id: "apps", label: "Applications", icon: IconApps },
   { id: "profile", label: "Profile", icon: IconProfile },
-  { id: "search", label: "Search", icon: IconSearch },
-  { id: "schedule", label: "Schedule", icon: IconClock },
 ];
 
 export default function App() {
@@ -55,6 +52,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [toast, setToast] = useState("");
   const [running, setRunning] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [detail, setDetail] = useState(null);   // job open in the details modal
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("jf_tour_done"));
   // Profile popup shows once per session — the in-page CTAs carry it after that.
   const [nagDismissed, setNagDismissed] = useState(() => !!sessionStorage.getItem("jf_nag_done"));
@@ -120,6 +118,12 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
     await api.sendJob(job);
     flash("Queued → preparing CV & sending to Telegram");
   }
+
+  async function saveJob(job, saved) {
+    try { await api.saveJob(job.id, saved); flash(saved ? "⭐ Saved" : "Removed from saved"); load(); }
+    catch { flash("Couldn't update saved"); }
+  }
+  const openDetail = (job) => setDetail(job);
 
   async function shareJob(job) {
     if (!job.slug) return;
@@ -209,14 +213,11 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
-        {tab === "jobs" && <AllJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
+        {tab === "jobs" && <MyJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
-        {tab === "apps" && <Applications data={data} />}
-        {tab === "profile" && (config ? <ProfileEditor key="p" initial={config.profile} onSave={saveConfig} /> : <Loading />)}
-        {tab === "search" && (config ? <SearchEditor key="s" initial={config.search} onSave={saveConfig} /> : <Loading />)}
-        {tab === "schedule" && (config ? <><ScheduleEditor key="c" initial={config.schedule} onSave={saveConfig} /><AutoApplyEditor key="aa" initial={config.auto_apply || {}} onSave={saveConfig} /></> : <Loading />)}
+        {tab === "profile" && (config ? <ProfileTab config={config} onSave={saveConfig} plan={data?.plan?.id || me.user?.plan || "free"} /> : <Loading />)}
       </div>
 
       <nav className="tabbar">
@@ -232,6 +233,12 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
           </button>
         ))}
       </nav>
+
+      {detail && (() => {
+        const live = (data?.jobs || []).find((j) => j.id === detail.id) || detail;
+        const appMap = Object.fromEntries((data?.applications || []).map((a) => [a.job_url, a.status]));
+        return <JobDetail job={live} appStatus={appMap[live.url]} onStatus={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onClose={() => setDetail(null)} />;
+      })()}
 
       {showPricing && (
         <PricingModal
@@ -420,7 +427,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
   );
 }
 
-function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile, onRun, onUpgrade, onManage }) {
+function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, complete, goProfile, onRun, onUpgrade, onManage }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -432,6 +439,8 @@ function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile
   const todayJobs = allJobs.filter((j) => withinHours(j.first_seen || j.sent_at, 24));
   const appliedJobs = allJobs.filter((j) => eff(j) === "applied");
   const autoJobs = allJobs.filter((j) => j.applied_via === "auto");
+  const savedJobs = allJobs.filter((j) => j.saved);
+  const readyJobs = allJobs.filter((j) => j.cv_url && j.cover_url);
   const interviewJobs = allJobs.filter((j) => eff(j) === "interview");
 
   const KPIS = [
@@ -439,12 +448,14 @@ function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile
     { id: "today", value: todayJobs.length, label: "Found today" },
     { id: "applied", value: appliedJobs.length, label: "Applied" },
     { id: "auto", value: autoJobs.length, label: "🤖 Auto-applied" },
+    { id: "saved", value: savedJobs.length, label: "⭐ Saved" },
+    { id: "ready", value: readyJobs.length, label: "📄 Ready docs" },
     { id: "interviews", value: interviewJobs.length, label: "Interviews" },
   ];
-  const lists = { total: allJobs, today: todayJobs, applied: appliedJobs, auto: autoJobs, interviews: interviewJobs };
+  const lists = { total: allJobs, today: todayJobs, applied: appliedJobs, auto: autoJobs, saved: savedJobs, ready: readyJobs, interviews: interviewJobs };
   const full = lists[filter] || [];
   const shown = full.slice(0, 60);
-  const titleMap = { total: "All my jobs", today: "Found today", applied: "Applied", auto: "Auto-applied", interviews: "Interviews" };
+  const titleMap = { total: "All my jobs", today: "Found today", applied: "Applied", auto: "Auto-applied", saved: "Saved jobs", ready: "Ready documents", interviews: "Interviews" };
 
   return (
     <div className="fade">
@@ -469,7 +480,7 @@ function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile
                 : (filter === "today" || filter === "total")
                   ? <HuntingCta onRun={onRun} />
                   : <Empty icon="🗂" title={`No ${titleMap[filter].toLowerCase()} yet`} sub="Tap another stat above." />)
-            : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} />)}</div>}
+            : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} onSave={onSave} onOpen={onOpen} />)}</div>}
         </div>
         <aside className="dash-rail">
           <SetupChecklist complete={complete} telegram={me.user?.telegram_connected} goProfile={goProfile} />
@@ -627,48 +638,76 @@ function ContactMessages({ flash }) {
   );
 }
 
-/* ---------------- All jobs ---------------- */
-function AllJobs({ data, onApp, onSend, onShare, complete, goProfile, onRun }) {
+/* ---------------- My Jobs (My jobs + Applications sub-tabs) ---------------- */
+function MyJobs(props) {
+  const [sub, setSub] = useState("mine");
+  return (
+    <div className="fade">
+      <div className="seg" style={{ maxWidth: 380 }}>
+        <button className={sub === "mine" ? "on" : ""} onClick={() => setSub("mine")}>My jobs</button>
+        <button className={sub === "apps" ? "on" : ""} onClick={() => setSub("apps")}>Applications</button>
+      </div>
+      {sub === "mine" ? <MyJobsList {...props} /> : <Applications data={props.data} />}
+    </div>
+  );
+}
+
+function MyJobsList({ data, onApp, onSend, onShare, onSave, onOpen, complete, goProfile, onRun }) {
   const [q, setQ] = useState("");
-  const [detail, setDetail] = useState(null);
+  const [f, setF] = useState("all");
   if (!data) return <Loading />;
   const jobs = data.jobs || [];
   const apps = data.applications || [];
   const appMap = Object.fromEntries(apps.map((a) => [a.job_url, a.status]));
-  const filtered = jobs.filter((j) => `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase()));
+  const eff = (j) => appMap[j.url] || j.status;
 
-  // match-score distribution
-  const buckets = [[0, 55], [55, 70], [70, 85], [85, 101]];
-  const dist = buckets.map(([lo, hi]) => ({ label: `${lo}–${hi === 101 ? 100 : hi}`, n: jobs.filter((j) => (j.match_score || 0) >= lo && (j.match_score || 0) < hi).length }));
-  const maxN = Math.max(1, ...dist.map((d) => d.n));
+  const filters = [
+    { id: "all", label: "All", fn: () => true },
+    { id: "saved", label: "⭐ Saved", fn: (j) => j.saved },
+    { id: "ready", label: "📄 Ready docs", fn: (j) => j.cv_url && j.cover_url },
+    { id: "applied", label: "✓ Applied", fn: (j) => eff(j) === "applied" },
+  ];
+  const active = filters.find((x) => x.id === f) || filters[0];
+  const filtered = jobs.filter(active.fn).filter((j) => `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="fade">
-      <div className="field"><input placeholder="Search jobs…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-      {jobs.length > 0 && (
-        <div className="card">
-          <p className="section-title" style={{ marginTop: 0 }}>Match-score distribution</p>
-          <div className="bars">
-            {dist.map((d) => (
-              <div className="bar-row" key={d.label}>
-                <span className="num" style={{ color: "var(--muted)" }}>{d.label}</span>
-                <div className="bar-track"><div className="bar-fill" style={{ width: `${(d.n / maxN) * 100}%`, background: "var(--accent)" }} /></div>
-                <span className="num" style={{ textAlign: "right" }}>{d.n}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+    <div>
+      <div className="field"><input placeholder="Search my jobs…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+      <div className="chip-row">
+        {filters.map((x) => (
+          <button key={x.id} className={`chip-btn${f === x.id ? " on" : ""}`} onClick={() => setF(x.id)}>{x.label} · {jobs.filter(x.fn).length}</button>
+        ))}
+      </div>
       {jobs.length === 0 ? (!complete ? <ProfileCta goProfile={goProfile} /> : <HuntingCta onRun={onRun} />) :
-       filtered.length === 0 ? <Empty title="No matching jobs" /> :
+       filtered.length === 0 ? <Empty icon="🔍" title="No matching jobs" sub="Try another filter or search." /> :
         <div className="job-list">
-          {filtered.map((j) => (
-            <div key={j.id || j.url} onClick={(e) => { if (!["A", "SELECT", "OPTION", "BUTTON"].includes(e.target.tagName)) setDetail(j); }}>
-              <JobCard job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} />
-            </div>
-          ))}
+          {filtered.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} onSave={onSave} onOpen={onOpen} />)}
         </div>}
-      {detail && <JobModal job={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+/* ---------------- Profile (Personal + Preferences sub-tabs) ---------------- */
+function ProfileTab({ config, onSave, plan }) {
+  const [sub, setSub] = useState("personal");
+  return (
+    <div className="fade">
+      <div className="seg" style={{ maxWidth: 420 }}>
+        <button className={sub === "personal" ? "on" : ""} onClick={() => setSub("personal")}>Personal info</button>
+        <button className={sub === "prefs" ? "on" : ""} onClick={() => setSub("prefs")}>Preferences</button>
+      </div>
+      {sub === "personal"
+        ? <ProfileEditor key="p" initial={config.profile} onSave={onSave} />
+        : (
+          <div key="prefs">
+            <p className="section-title">🎯 What you're looking for</p>
+            <SearchEditor initial={config.search} onSave={onSave} plan={plan} />
+            <p className="section-title" style={{ marginTop: 22 }}>⏰ Schedule</p>
+            <ScheduleEditor initial={config.schedule} onSave={onSave} />
+            <p className="section-title" style={{ marginTop: 22 }}>🤖 Auto-apply</p>
+            <AutoApplyEditor initial={config.auto_apply || {}} onSave={onSave} plan={plan} />
+          </div>
+        )}
     </div>
   );
 }

@@ -1,7 +1,18 @@
 import React, { useState } from "react";
+import { limitFor, UNLIMITED, PLAN_EMOJI } from "./plans";
 
 const listToStr = (a) => (Array.isArray(a) ? a.join(", ") : "");
 const strToList = (s) => s.split(",").map((x) => x.trim()).filter(Boolean);
+
+// Unified country list. `noadz` = not in Adzuna's DB (still searched via other
+// sources through `locations`). Single source of truth for country selection.
+const COUNTRIES = [
+  { c: "gb", n: "United Kingdom" }, { c: "us", n: "United States" }, { c: "ae", n: "UAE", noadz: true },
+  { c: "sa", n: "Saudi Arabia", noadz: true }, { c: "qa", n: "Qatar", noadz: true }, { c: "au", n: "Australia" },
+  { c: "ca", n: "Canada" }, { c: "de", n: "Germany" }, { c: "fr", n: "France" }, { c: "in", n: "India" },
+  { c: "nl", n: "Netherlands" }, { c: "sg", n: "Singapore" }, { c: "za", n: "South Africa" },
+  { c: "nz", n: "New Zealand" }, { c: "it", n: "Italy" }, { c: "pl", n: "Poland" }, { c: "br", n: "Brazil" }, { c: "mx", n: "Mexico" },
+];
 
 function SaveBar({ dirty, busy, onSave, saved }) {
   return (
@@ -13,12 +24,13 @@ function SaveBar({ dirty, busy, onSave, saved }) {
 }
 
 /* ---------------- Auto-apply (autopilot) ---------------- */
-export function AutoApplyEditor({ initial, onSave }) {
+export function AutoApplyEditor({ initial, onSave, plan = "free" }) {
+  const planCap = limitFor(plan, "autoapply");
   const [a, setA] = useState({
     enabled: !!initial.enabled,
     gmail_address: initial.gmail_address || "",
     min_score: initial.min_score ?? 70,
-    daily_cap: initial.daily_cap ?? 10,
+    daily_cap: Math.min(initial.daily_cap ?? 10, planCap),
   });
   const [pw, setPw] = useState("");
   const [hasPw, setHasPw] = useState(!!initial.has_password);
@@ -73,7 +85,7 @@ export function AutoApplyEditor({ initial, onSave }) {
 
         <div className="grid2">
           <div className="field"><label>Only apply if match ≥</label><input type="number" min="0" max="100" value={a.min_score} onChange={(e) => set("min_score", parseInt(e.target.value || "70", 10))} /><div className="hint">Recommended 70+</div></div>
-          <div className="field"><label>Max applications / day</label><input type="number" min="1" max="50" value={a.daily_cap} onChange={(e) => set("daily_cap", parseInt(e.target.value || "10", 10))} /><div className="hint">Avoid over-applying</div></div>
+          <div className="field"><label>Max applications / day</label><input type="number" min="1" max={planCap} value={a.daily_cap} onChange={(e) => set("daily_cap", Math.min(parseInt(e.target.value || "1", 10), planCap))} /><div className="hint">Your plan allows up to <b>{planCap}</b>/day {PLAN_EMOJI[plan] || ""}</div></div>
         </div>
 
         <div className="hint" style={{ marginTop: 4 }}>You get a Telegram receipt for every application. Turn this off anytime — it's a kill switch.</div>
@@ -231,57 +243,87 @@ export function ProfileEditor({ initial, onSave }) {
 /* ---------------- Search ---------------- */
 const ALL_SOURCES = ["remotive", "remoteok", "adzuna", "jooble", "apify"];
 
-export function SearchEditor({ initial, onSave }) {
+export function SearchEditor({ initial, onSave, plan = "free" }) {
   const [s, setS] = useState(initial);
+  // Source of truth for country selection = a Set of country codes.
+  const initSel = (initial.countries && initial.countries.length) ? initial.countries : (initial.adzuna_countries || []);
+  const [sel, setSel] = useState(new Set(initSel));
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [nudge, setNudge] = useState("");
   const set = (k, v) => { setS((o) => ({ ...o, [k]: v })); setDirty(true); setSaved(false); };
   const toggleSource = (src) => {
     const cur = new Set(s.sources || []);
     cur.has(src) ? cur.delete(src) : cur.add(src);
     set("sources", ALL_SOURCES.filter((x) => cur.has(x)));
   };
-  async function save() { setBusy(true); try { await onSave("search", s); setDirty(false); setSaved(true); } finally { setBusy(false); } }
+
+  const maxCountries = limitFor(plan, "countries");
+  function toggleCountry(c) {
+    const next = new Set(sel);
+    if (next.has(c)) { next.delete(c); setNudge(""); }
+    else {
+      if (next.size >= maxCountries) {
+        setNudge(`Your plan allows ${maxCountries} ${maxCountries === 1 ? "country" : "countries"}. Upgrade to search more.`);
+        return;
+      }
+      next.add(c);
+    }
+    setSel(next); setDirty(true); setSaved(false);
+  }
+
+  async function save() {
+    setBusy(true);
+    const codes = [...sel];
+    const payload = {
+      ...s, countries: codes,
+      adzuna_countries: codes.filter((c) => COUNTRIES.find((x) => x.c === c && !x.noadz)),
+      locations: codes.map((c) => COUNTRIES.find((x) => x.c === c)?.n).filter(Boolean),
+    };
+    try { await onSave("search", payload); setDirty(false); setSaved(true); }
+    finally { setBusy(false); }
+  }
 
   return (
     <div className="fade">
-      <div className="field"><label>Job titles (comma-separated)</label><input value={listToStr(s.job_titles)} onChange={(e) => set("job_titles", strToList(e.target.value))} /></div>
-      <div className="field"><label>Locations (comma-separated)</label><input value={listToStr(s.locations)} onChange={(e) => set("locations", strToList(e.target.value))} /></div>
-      <div className="field"><label className="checkbox"><input type="checkbox" checked={!!s.remote} onChange={(e) => set("remote", e.target.checked)} /> Remote roles</label></div>
-      <div className="field"><label>Keywords to include</label><input value={listToStr(s.keywords_include)} onChange={(e) => set("keywords_include", strToList(e.target.value))} /></div>
-      <div className="field"><label>Keywords to exclude</label><input value={listToStr(s.keywords_exclude)} onChange={(e) => set("keywords_exclude", strToList(e.target.value))} /></div>
+      <div className="card">
+        <div className="field"><label>Job titles you want (comma-separated)</label><input value={listToStr(s.job_titles)} onChange={(e) => set("job_titles", strToList(e.target.value))} placeholder="e.g. Electrical Engineer, Project Manager" /></div>
 
-      <div className="field">
-        <label>Sources</label>
-        <div className="job-meta">
-          {ALL_SOURCES.map((src) => {
-            const on = (s.sources || []).includes(src);
-            return <button key={src} className="tag" style={on ? { background: "var(--accent-weak)", borderColor: "var(--accent)", color: "var(--accent)" } : {}} onClick={() => toggleSource(src)}>{on ? "✓ " : ""}{src}</button>;
-          })}
+        <div className="field">
+          <label>Countries · {sel.size}/{maxCountries === UNLIMITED ? "∞" : maxCountries} {PLAN_EMOJI[plan] || ""}</label>
+          <div className="job-meta">
+            {COUNTRIES.map(({ c, n }) => {
+              const on = sel.has(c);
+              return <button key={c} type="button" className="tag" style={on ? { background: "var(--accent-weak)", borderColor: "var(--accent)", color: "var(--accent)" } : {}} onClick={() => toggleCountry(c)}>{on ? "✓ " : ""}{n}</button>;
+            })}
+          </div>
+          {nudge && <div className="hint" style={{ color: "var(--warn)" }}>⭐ {nudge}</div>}
+          <div className="hint">One place for all country selection — used across every job source.</div>
         </div>
-        <div className="hint">remotive & remoteok need no key. adzuna/jooble need a free key; apify costs credits (throttled).</div>
-      </div>
 
-      <div className="field">
-        <label>Adzuna countries (tap to toggle — pick as many as you want)</label>
-        <div className="job-meta">
-          {[["gb","UK"],["us","USA"],["au","Australia"],["ca","Canada"],["de","Germany"],["fr","France"],["it","Italy"],["nl","Netherlands"],["at","Austria"],["pl","Poland"],["in","India"],["nz","N.Zealand"],["sg","Singapore"],["za","S.Africa"],["br","Brazil"],["mx","Mexico"]].map(([c,n]) => {
-            const on = (s.adzuna_countries || []).includes(c);
-            return <button key={c} className="tag" style={on ? { background: "var(--accent-weak)", borderColor: "var(--accent)", color: "var(--accent)" } : {}} onClick={() => {
-              const cur = new Set(s.adzuna_countries || []);
-              cur.has(c) ? cur.delete(c) : cur.add(c);
-              set("adzuna_countries", Array.from(cur));
-            }}>{on ? "✓ " : ""}{n}</button>;
-          })}
+        <div className="field"><label className="checkbox"><input type="checkbox" checked={!!s.remote} onChange={(e) => set("remote", e.target.checked)} /> Include remote roles</label></div>
+        <div className="grid2">
+          <div className="field"><label>Keywords to include</label><input value={listToStr(s.keywords_include)} onChange={(e) => set("keywords_include", strToList(e.target.value))} /></div>
+          <div className="field"><label>Keywords to exclude</label><input value={listToStr(s.keywords_exclude)} onChange={(e) => set("keywords_exclude", strToList(e.target.value))} /></div>
         </div>
-        <div className="hint">Adzuna searches each selected country. Note: Adzuna has no Gulf database — use Jooble/Apify for UAE/Saudi/Qatar.</div>
+
+        <div className="field">
+          <label>Job sources</label>
+          <div className="job-meta">
+            {ALL_SOURCES.map((src) => {
+              const on = (s.sources || []).includes(src);
+              return <button key={src} type="button" className="tag" style={on ? { background: "var(--accent-weak)", borderColor: "var(--accent)", color: "var(--accent)" } : {}} onClick={() => toggleSource(src)}>{on ? "✓ " : ""}{src}</button>;
+            })}
+          </div>
+          <div className="hint">remotive & remoteok are free. adzuna/jooble use a free key; apify costs credits (throttled).</div>
+        </div>
+
+        <div className="grid2">
+          <div className="field"><label>Posted within (days)</label><input type="number" value={s.posted_within_days ?? 7} onChange={(e) => set("posted_within_days", parseInt(e.target.value || "7", 10))} /></div>
+          <div className="field"><label>Match threshold (0–100)</label><input type="number" value={s.match_threshold ?? 55} onChange={(e) => set("match_threshold", parseInt(e.target.value || "55", 10))} /></div>
+        </div>
       </div>
-      <div className="grid2">
-        <div className="field"><label>Posted within (days)</label><input type="number" value={s.posted_within_days ?? 7} onChange={(e) => set("posted_within_days", parseInt(e.target.value || "7", 10))} /></div>
-        <div className="field"><label>Match threshold (0–100)</label><input type="number" value={s.match_threshold ?? 55} onChange={(e) => set("match_threshold", parseInt(e.target.value || "55", 10))} /></div>
-      </div>
-      <div className="field"><label>Max new jobs per check</label><input type="number" value={s.max_per_tick ?? 5} onChange={(e) => set("max_per_tick", parseInt(e.target.value || "5", 10))} /><div className="hint">Caps how many NEW jobs get fully processed each tick; the rest carry over.</div></div>
 
       <SaveBar dirty={dirty} busy={busy} saved={saved} onSave={save} />
     </div>

@@ -64,3 +64,13 @@ export const PLANS = [
 
 export const planEmoji = (id) => PLAN_EMOJI[id] || "🆓";
 export const rank = (id) => Math.max(0, PLAN_ORDER.indexOf(id));
+
+// Numeric limits for UI enforcement (mirror functions/_shared/plans.js).
+export const UNLIMITED = 999;
+export const LIMITS = {
+  free:    { countries: 1, autoapply: 1 },
+  starter: { countries: 3, autoapply: 5 },
+  pro:     { countries: UNLIMITED, autoapply: 15 },
+  proplus: { countries: UNLIMITED, autoapply: 40 },
+};
+export const limitFor = (plan, key) => (LIMITS[(plan || "free").toLowerCase()] || LIMITS.free)[key];
