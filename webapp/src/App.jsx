@@ -57,6 +57,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [detail, setDetail] = useState(null);   // job open in the details modal
   const [interviewJob, setInterviewJob] = useState(null); // job open in the interview chat
   const [showConnect, setShowConnect] = useState(false);  // telegram connect modal
+  const [limitWall, setLimitWall] = useState(null);       // { title, message } upgrade prompt
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("jf_tour_done"));
   // Profile popup shows once per session — the in-page CTAs carry it after that.
   const [nagDismissed, setNagDismissed] = useState(() => !!sessionStorage.getItem("jf_nag_done"));
@@ -119,8 +120,17 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   function finishTour() { localStorage.setItem("jf_tour_done", "1"); localStorage.removeItem("jf_new_user"); setShowTour(false); }
 
   async function sendJob(job) {
-    await api.sendJob(job);
-    flash("Queued → preparing CV & sending to Telegram");
+    try {
+      await api.sendJob(job);
+      flash("Queued → preparing CV & sending to Telegram");
+    } catch (e) {
+      if (e.status === 402 || e.message === "limit" || e.body?.error === "limit") {
+        setLimitWall({ title: "Daily limit reached", message: e.body?.message || "You've used today's CV & cover-letter preparations on your plan. Upgrade to prepare more." });
+      } else {
+        flash("Couldn't prepare — please try again.");
+      }
+      throw e; // let the card reset its button state
+    }
   }
 
   async function saveJob(job, saved) {
@@ -248,6 +258,22 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       })()}
 
       {interviewJob && <InterviewChat job={interviewJob} onClose={() => setInterviewJob(null)} onUpgrade={() => setShowPricing(true)} />}
+
+      {limitWall && (
+        <div className="modal-back" onClick={() => setLimitWall(null)}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ textAlign: "center", padding: "8px 6px 6px" }}>
+              <div style={{ fontSize: 42 }}>🔒</div>
+              <div className="job-title" style={{ fontSize: 20, marginTop: 8 }}>{limitWall.title}</div>
+              <p style={{ color: "var(--ink-2)", fontSize: 14.5, lineHeight: 1.6, margin: "8px auto 20px", maxWidth: "34ch" }}>{limitWall.message}</p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                <button className="btn" onClick={() => setLimitWall(null)}>Not now</button>
+                <button className="btn primary" onClick={() => { setLimitWall(null); setShowPricing(true); }}>⭐ Upgrade</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showConnect && (
         <div className="modal-back" onClick={() => setShowConnect(false)}>

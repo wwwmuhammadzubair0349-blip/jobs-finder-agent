@@ -76,7 +76,7 @@ export function JobCard({ job, appStatus, onStatus, onSend, onShare, onSave, onO
     e?.stopPropagation();
     if (!onSend) return;
     setSending(true);
-    try { await onSend(job); setSent(true); } finally { setSending(false); }
+    try { await onSend(job); setSent(true); } catch { /* upstream shows the upgrade wall */ } finally { setSending(false); }
   }
   function cardClick(e) {
     if (onOpen && !INTERACTIVE.includes((e.target.tagName || "").toUpperCase())) onOpen(job);
@@ -132,7 +132,7 @@ export function JobDetail({ job, appStatus, onStatus, onSend, onShare, onSave, o
     const next = !saved; setSaved(next);
     try { await onSave?.(job, next); } catch { setSaved(!next); }
   }
-  async function send() { if (!onSend) return; setSending(true); try { await onSend(job); setSent(true); } finally { setSending(false); } }
+  async function send() { if (!onSend) return; setSending(true); try { await onSend(job); setSent(true); } catch { /* upstream shows the upgrade wall */ } finally { setSending(false); } }
 
   return (
     <div className="modal-back" onClick={onClose}>
