@@ -58,6 +58,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [interviewJob, setInterviewJob] = useState(null); // job open in the interview chat
   const [showConnect, setShowConnect] = useState(false);  // telegram connect modal
   const [limitWall, setLimitWall] = useState(null);       // { title, message } upgrade prompt
+  const [profileSub, setProfileSub] = useState("personal"); // which Profile sub-tab to open
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("jf_tour_done"));
   // Profile popup shows once per session — the in-page CTAs carry it after that.
   const [nagDismissed, setNagDismissed] = useState(() => !!sessionStorage.getItem("jf_nag_done"));
@@ -230,11 +231,11 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} onSeeAll={() => setTab("jobs")} onInterview={openInterview} autoApplyOn={!!config?.auto_apply?.enabled} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} onSeeAll={() => setTab("jobs")} onInterview={openInterview} autoApplyOn={!!config?.auto_apply?.enabled} onAutoApplyHelp={() => { setProfileSub("auto"); setTab("profile"); }} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
         {tab === "jobs" && <MyJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} onInterview={openInterview} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
-        {tab === "profile" && (config ? <ProfileTab config={config} onSave={saveConfig} plan={data?.plan?.id || me.user?.plan || "free"} planData={data?.plan} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} /> : <Loading />)}
+        {tab === "profile" && (config ? <ProfileTab key={`prof-${profileSub}`} initialSub={profileSub} config={config} onSave={saveConfig} plan={data?.plan?.id || me.user?.plan || "free"} planData={data?.plan} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} /> : <Loading />)}
       </div>
 
       <nav className="tabbar">
@@ -474,7 +475,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
   );
 }
 
-function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, reloadMe, complete, goProfile, onRun, onUpgrade, onManage, onSeeAll, autoApplyOn }) {
+function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, reloadMe, complete, goProfile, onRun, onUpgrade, onManage, onSeeAll, autoApplyOn, onAutoApplyHelp }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -531,7 +532,7 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, 
         ))}
       </div>
 
-      <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} autoApplyOn={autoApplyOn} />
+      <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} autoApplyOn={autoApplyOn} onAutoApplyHelp={onAutoApplyHelp} />
 
       <div className={`dash-grid${showRail ? "" : " norail"}`}>
         <div className="dash-main">
@@ -559,9 +560,12 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, 
 }
 
 // Compact AI-team strip — tidy chips, live pulse when working.
-function AgentGrid({ status, current, running, autoApplyOn }) {
+function AgentGrid({ status, current, running, autoApplyOn, onAutoApplyHelp }) {
   const byName = Object.fromEntries((status || []).map((s) => [s.name, s]));
   const anyActive = AGENTS.some((a) => { const s = byName[a.key]; return s?.last_run && (Date.now() - new Date(s.last_run).getTime()) < 45000; });
+  const AA_HELP = autoApplyOn
+    ? "Auto-apply is ON — we're applying to your best matching jobs automatically (up to your daily limit), emailing your tailored CV + cover letter. Click to manage."
+    : "Auto-apply is OFF. Turn it on in Profile → Auto-apply and we'll apply to matching jobs for you automatically, up to your daily limit. Click to set it up.";
   return (
     <div className="card" style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -574,14 +578,16 @@ function AgentGrid({ status, current, running, autoApplyOn }) {
           const ms = s?.last_run ? (Date.now() - new Date(s.last_run).getTime()) : Infinity;
           const active = ms < 45000;
           const recent = ms < 3600000;
-          const forceOn = a.key === "applicant" && autoApplyOn;   // auto-apply enabled → live
+          const isAA = a.key === "applicant";
+          const forceOn = isAA && autoApplyOn;   // auto-apply enabled → live
           const state = forceOn || active || recent ? "green" : s?.state === "red" ? "red" : (s?.state || "gray");
           const dot = state === "green" ? "var(--ok)" : state === "red" ? "var(--err)" : state === "yellow" ? "var(--warn)" : "var(--hair-strong)";
-          const title = forceOn ? "Auto-apply is ON" : active ? "Working now" : s?.last_run ? `Active ${timeAgo(s.last_run)}` : "Ready";
+          const title = isAA ? AA_HELP : active ? "Working now" : s?.last_run ? `Active ${timeAgo(s.last_run)}` : "Ready";
           return (
-            <div key={a.key} className={`ai-chip${active || forceOn ? " active" : ""}`} title={title}>
+            <div key={a.key} className={`ai-chip${active || forceOn ? " active" : ""}${isAA ? " clickable" : ""}`} title={title}
+              onClick={isAA ? onAutoApplyHelp : undefined} role={isAA ? "button" : undefined}>
               <span className="ai-chip-ico">{a.emoji}</span>
-              <span className="ai-chip-name">{a.name}</span>
+              <span className="ai-chip-name">{a.name}{isAA && !autoApplyOn ? " · Off" : ""}</span>
               <span className="status-dot" style={{ background: dot, width: 7, height: 7 }} />
             </div>
           );
@@ -794,8 +800,8 @@ function MyJobsList({ data, onApp, onSend, onShare, onSave, onOpen, onInterview,
 }
 
 /* ---------------- Profile (Personal + Preferences + Subscription) ---------------- */
-function ProfileTab({ config, onSave, plan, planData, onUpgrade, onManage }) {
-  const [sub, setSub] = useState("personal");
+function ProfileTab({ config, onSave, plan, planData, onUpgrade, onManage, initialSub }) {
+  const [sub, setSub] = useState(initialSub || "personal");
   return (
     <div className="fade">
       <div className="seg" style={{ maxWidth: 640 }}>

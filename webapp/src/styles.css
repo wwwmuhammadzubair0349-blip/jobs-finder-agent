@@ -837,6 +837,8 @@ select.status {
 .ai-chip-ico { font-size: 15px; }
 .ai-chip-name { color: var(--ink); }
 .ai-chip.active { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); }
+.ai-chip.clickable { cursor: pointer; }
+.ai-chip.clickable:hover { border-color: var(--accent); }
 @media (prefers-reduced-motion: no-preference) { .ai-chip.active { animation: aichip 1.6s ease-in-out infinite; } @keyframes aichip { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } } }
 
 /* ---- Plan card + meters (premium) -------------------------------------------- */

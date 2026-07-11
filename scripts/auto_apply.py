@@ -10,14 +10,49 @@ every application, and failures surface to Telegram + issues.
 from __future__ import annotations
 
 import datetime as _dt
+import os
 import re
 import smtplib
 from email.message import EmailMessage
 from pathlib import Path
 
+import requests
+
 from d1 import execute, query
 from enc import decrypt
 from log_issue import log_issue
+
+
+# --------------------------------------------------------------------------- #
+# Auto-apply bot — sends application receipts + a daily summary to the user.   #
+# Token lives in KV (aa_bot_token) or env AUTO_APPLY_BOT_TOKEN.                #
+# --------------------------------------------------------------------------- #
+_AA_BOT_TOKEN = None
+
+
+def _aa_token() -> str:
+    global _AA_BOT_TOKEN
+    if _AA_BOT_TOKEN is None:
+        try:
+            from cf_store import kv_get
+            _AA_BOT_TOKEN = kv_get("aa_bot_token", "") or os.getenv("AUTO_APPLY_BOT_TOKEN", "")
+        except Exception:
+            _AA_BOT_TOKEN = os.getenv("AUTO_APPLY_BOT_TOKEN", "")
+    return _AA_BOT_TOKEN or ""
+
+
+def aa_notify(text: str, chat_id) -> None:
+    """Send a message from the Auto-apply bot (best-effort)."""
+    tok = _aa_token()
+    if not tok or not chat_id:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{tok}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True},
+            timeout=15)
+    except Exception:
+        pass
 
 # Never "apply" to these — job boards, no-reply, tracking domains.
 _EMAIL_BLACKLIST = re.compile(

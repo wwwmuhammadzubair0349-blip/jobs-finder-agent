@@ -118,6 +118,24 @@ def queued_user_jobs(user_id: str) -> list[dict]:
             WHERE uj.user_id = ? AND uj.status = 'queued'""", [user_id])
 
 
+def pending_autoapply_jobs(user_id: str, limit: int = 40) -> list[dict]:
+    """Not-yet-applied matched jobs (best matches first) — candidates for auto-apply."""
+    return query(
+        """SELECT uj.job_id, jp.title, jp.company, jp.location, jp.url, jp.description,
+                  uj.match_score, uj.why
+             FROM user_jobs uj JOIN job_pool jp ON jp.id = uj.job_id
+            WHERE uj.user_id = ? AND uj.status != 'applied' AND uj.applied_via IS NULL
+            ORDER BY uj.match_score DESC LIMIT ?""", [user_id, limit])
+
+
+def todays_auto_applied(user_id: str, day_prefix: str) -> list[dict]:
+    """Jobs auto-applied today (for the daily summary). day_prefix like '2026-07-11'."""
+    return query(
+        """SELECT jp.title, jp.company FROM user_jobs uj JOIN job_pool jp ON jp.id = uj.job_id
+            WHERE uj.user_id = ? AND uj.applied_via = 'auto' AND uj.applied_at LIKE ?
+            ORDER BY uj.applied_at DESC""", [user_id, day_prefix + "%"])
+
+
 def save_cv_keys(user_id: str, job_id: str, cv_key: str, cover_key: str, cv_txt_key: str) -> None:
     execute(
         "UPDATE user_jobs SET cv_key=?, cover_key=?, cv_txt_key=?, cv_request=NULL WHERE user_id=? AND job_id=?",

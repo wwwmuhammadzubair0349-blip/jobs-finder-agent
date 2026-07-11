@@ -295,7 +295,92 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
 
     # On-demand CV/cover requests (from bot buttons / dashboard) — generate + cache.
     sent += _process_manual_user(u, cfg, queued_fn, mark_sent, store_cv)
+
+    # Autopilot: keep applying to the best eligible jobs until today's cap is met.
+    _autoapply_fill(u, settings, profile, store_cv, chat_id, plan, tz)
+    _autoapply_summary(u, settings, chat_id, tz)
     return sent
+
+
+def _autoapply_fill(u, settings, profile, store_cv, chat_id, plan, tz):
+    """Apply to the best not-yet-applied eligible jobs (email / ATS form) until
+    the user's daily cap = min(their cap, plan cap). Capped per tick so a run
+    stays under the Actions timeout; remaining slots fill on later ticks."""
+    try:
+        from auto_apply import (get_auto_settings, find_apply_email, try_auto_apply,
+                                 applies_today, aa_notify)
+        from apply_forms import supported_ats
+        from agent_cv import tailor
+        from render_cv import render
+        from send_telegram import send_message
+        from saas_store import pending_autoapply_jobs, save_cv_keys, user_agents_update
+        from plans import metric_limit
+
+        aa = get_auto_settings(settings)
+        if not (aa["enabled"] and aa["gmail_address"] and aa["gmail_app_password_enc"]):
+            return
+        plan_cap, _ = metric_limit(plan, "autoapply")
+        cap = min(aa["daily_cap"], plan_cap)
+        remaining = cap - applies_today(u["id"], tz)
+        if remaining <= 0:
+            return
+        per_tick = min(remaining, 8)
+        applied = 0
+        for job in pending_autoapply_jobs(u["id"], 60):
+            if applied >= per_tick:
+                break
+            if (job.get("match_score") or 0) < aa["min_score"]:
+                continue
+            email = find_apply_email(job.get("description", ""))
+            is_form = supported_ats(job.get("url", ""))
+            if not (email or is_form):
+                continue
+            j = {**job, "id": job["job_id"]}
+            try:
+                set_activity("applicant", "auto-applying", j.get("title", ""))
+                cv_data = tailor(j, profile)
+                result = render(j, profile, cv_data, _OUTPUT)
+                uj_id = f"{u['id'][:8]}-{j['id']}"[:120]
+                keys = store_cv(uj_id, result.get("basename", "CV"), result["cv_pdf"], result["cover_pdf"], result["cv_txt"])
+                save_cv_keys(u["id"], j["id"], keys.get("cv", ""), keys.get("cover", ""), keys.get("txt", ""))
+                if try_auto_apply(u, settings, profile, j, cv_data, result, lambda t: send_message(t, chat_id=chat_id)):
+                    applied += 1
+                    aa_notify(f"🤖✅ <b>Auto-applied</b> — {j.get('title','')}\n🏬 {j.get('company','')}\n📧 Your tailored CV + cover letter were sent.", chat_id)
+            except Exception as exc:
+                log_issue("run_saas", f"autoapply fill {job.get('title')}: {exc}", "warning")
+        if applied:
+            user_agents_update(u["id"], ["applicant"])
+            log(f"  {u.get('email')}: auto-applied to {applied} job(s) this tick")
+    except Exception as exc:
+        log_issue("run_saas", f"autoapply fill: {exc}", "warning")
+
+
+def _autoapply_summary(u, settings, chat_id, tz):
+    """Once per day (evening, user tz), send the day's auto-apply digest via the
+    Auto-apply bot — only for users who have auto-apply enabled."""
+    try:
+        from auto_apply import get_auto_settings, aa_notify
+        if not get_auto_settings(settings).get("enabled"):
+            return
+        from plans import once_per_day, period_key
+        try:
+            from zoneinfo import ZoneInfo
+            hour = _dt.datetime.now(ZoneInfo(tz or "UTC")).hour
+        except Exception:
+            hour = _dt.datetime.now(_dt.timezone.utc).hour
+        if hour < 21:
+            return
+        if not once_per_day(u["id"], "aa_summary", tz):
+            return
+        from saas_store import todays_auto_applied
+        rows = todays_auto_applied(u["id"], period_key("day", tz))
+        if not rows:
+            aa_notify("🤖 <b>Daily auto-apply summary</b>\nNo applications were sent today.", chat_id)
+            return
+        lines = "\n".join(f"• {r['title']} — {r['company']}" for r in rows[:25])
+        aa_notify(f"🤖 <b>Daily auto-apply summary</b>\nApplied to <b>{len(rows)}</b> job(s) today:\n{lines}", chat_id)
+    except Exception as exc:
+        log(f"  aa summary failed: {exc}")
 
 
 def _try_apply(u, settings, profile, job, chat_id, store_cv):
@@ -306,7 +391,7 @@ def _try_apply(u, settings, profile, job, chat_id, store_cv):
         return
     try:
         from auto_apply import (get_auto_settings, find_apply_email, semi_auto_site,
-                                 try_auto_apply)
+                                 try_auto_apply, aa_notify)
         from apply_forms import supported_ats
         from agent_cv import tailor
         from render_cv import render
@@ -337,6 +422,7 @@ def _try_apply(u, settings, profile, job, chat_id, store_cv):
         # 1) Full auto — email / ATS form
         if try_auto_apply(u, settings, profile, job, cv_data, result, notify):
             mark_applied_via(u["id"], job["id"], "auto")
+            aa_notify(f"🤖✅ <b>Auto-applied</b> — {job.get('title','')}\n🏬 {job.get('company','')}\n📧 Your tailored CV + cover letter were sent.", chat_id)
             user_agents_update(u["id"], ["applicant"])
             return
         # 2) Semi-auto — LinkedIn/Indeed/etc.
