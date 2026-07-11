@@ -227,6 +227,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       {showPricing && (
         <PricingModal
           currentId={data?.plan?.id || "free"}
+          hasSubscription={!!data?.plan?.has_subscription}
           onClose={() => setShowPricing(false)}
           onChoose={choosePlan}
           onManage={manageBilling}

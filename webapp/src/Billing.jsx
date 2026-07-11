@@ -45,7 +45,7 @@ export function UsageMeters({ plan, onOpen, onManage }) {
   if (!plan?.usage) return null;
   const order = ["notif", "autoapply", "cvprep", "interview"];
   const isTop = plan.id === "proplus";
-  const isPaid = plan.id !== "free";
+  const canManage = !!plan.has_subscription;
   return (
     <div className="card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -56,7 +56,7 @@ export function UsageMeters({ plan, onOpen, onManage }) {
       <div className="meters">
         {order.map((k) => plan.usage[k] && <MeterRow key={k} mkey={k} u={plan.usage[k]} />)}
       </div>
-      {isPaid && onManage && (
+      {canManage && onManage && (
         <div style={{ marginTop: 12, textAlign: "right" }}>
           <button className="btn ghost sm" onClick={onManage}>Manage billing</button>
         </div>
@@ -66,9 +66,8 @@ export function UsageMeters({ plan, onOpen, onManage }) {
 }
 
 // Full pricing page as a modal. `onChoose(id)` handles upgrade intent.
-export function PricingModal({ currentId = "free", onClose, onChoose, onManage }) {
+export function PricingModal({ currentId = "free", hasSubscription = false, onClose, onChoose, onManage }) {
   const curRank = rank(currentId);
-  const isPaid = currentId !== "free";
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal pricing fade" onClick={(e) => e.stopPropagation()}>
@@ -110,7 +109,7 @@ export function PricingModal({ currentId = "free", onClose, onChoose, onManage }
         </div>
         <div className="hint" style={{ textAlign: "center", marginTop: 12 }}>
           Auto-applied CVs & cover letters never count against your CV/cover quota.
-          {isPaid && onManage && <> · <a role="button" onClick={onManage} style={{ cursor: "pointer", color: "var(--accent)" }}>Manage billing</a></>}
+          {hasSubscription && onManage && <> · <a role="button" onClick={onManage} style={{ cursor: "pointer", color: "var(--accent)" }}>Manage billing</a></>}
         </div>
       </div>
     </div>

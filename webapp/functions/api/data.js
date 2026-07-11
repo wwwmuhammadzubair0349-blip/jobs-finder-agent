@@ -36,11 +36,11 @@ export async function onRequestGet(context) {
   const settings = cfg?.settings ? JSON.parse(cfg.settings) : DEFAULT_SETTINGS;
 
   // Plan + live quota usage (for the dashboard badge + meters).
-  const urow = await one(env, "SELECT plan FROM users WHERE id = ?", uid);
+  const urow = await one(env, "SELECT plan, ls_subscription_id FROM users WHERE id = ?", uid);
   const planId = (urow?.plan || "free").toLowerCase();
   const meta = PLAN_META[planId] || PLAN_META.free;
   const usage = await usageSummary(env, uid, planId, settings.timezone || "UTC");
-  const plan = { id: planId, label: meta.label, price: meta.price, usage };
+  const plan = { id: planId, label: meta.label, price: meta.price, usage, has_subscription: !!urow?.ls_subscription_id };
 
   const [status, latestRun] = await Promise.all([
     kvJSON(env, `agents_status:${uid}`, []),   // per-user agent activity
