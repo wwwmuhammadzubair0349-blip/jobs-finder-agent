@@ -45,10 +45,11 @@ export async function verifySignature(secret, rawBody, signatureHex) {
     const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
     const bytes = new Uint8Array(sig);
     const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const got = (signatureHex || "").trim().toLowerCase();
     // constant-time-ish compare
-    if (hex.length !== signatureHex.length) return false;
+    if (hex.length !== got.length) return false;
     let diff = 0;
-    for (let i = 0; i < hex.length; i++) diff |= hex.charCodeAt(i) ^ signatureHex.charCodeAt(i);
+    for (let i = 0; i < hex.length; i++) diff |= hex.charCodeAt(i) ^ got.charCodeAt(i);
     return diff === 0;
   } catch {
     return false;
