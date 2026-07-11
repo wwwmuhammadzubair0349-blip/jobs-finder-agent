@@ -711,7 +711,8 @@ select.status {
   /* On phones/tablets, onboarding + plan cards sit above the job list. */
   .dash-rail { order: -1; }
 }
-@media (min-width: 1500px) { .dash-main .job-list { grid-template-columns: 1fr 1fr; } }
+/* Today keeps ONE roomy column in the main area (no cramped 2-col wrap). */
+.dash-main .job-list { grid-template-columns: 1fr !important; }
 
 /* ---- Premium job cards + details modal --------------------------------------- */
 .jobcard.clickable { cursor: pointer; }
@@ -813,6 +814,36 @@ select.status {
 .kpi2.on { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 42%, transparent); }
 .kpi2.on .kpi2-l { color: rgba(255, 255, 255, 0.88); }
 .kpi2.on::after { content: ""; position: absolute; width: 120px; height: 120px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); filter: blur(30px); top: -50px; right: -30px; }
+
+/* ---- Compact AI-team strip --------------------------------------------------- */
+.ai-status { font-size: 12.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; font-weight: 550; }
+.pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); }
+@media (prefers-reduced-motion: no-preference) { .pulse-dot { animation: pulse 1.6s ease-out infinite; } @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } } }
+.ai-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 11px;
+  background: var(--surface-2); border: 1px solid var(--hair); font-size: 13px; font-weight: 550; color: var(--ink-2);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.ai-chip-ico { font-size: 15px; }
+.ai-chip-name { color: var(--ink); }
+.ai-chip.active { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) { .ai-chip.active { animation: aichip 1.6s ease-in-out infinite; } @keyframes aichip { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } } }
+
+/* ---- Plan card + meters (premium) -------------------------------------------- */
+.plan-card { background: linear-gradient(180deg, color-mix(in srgb, var(--accent-weak) 45%, var(--surface)), var(--surface)); }
+.plan-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.plan-card-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.9px; color: var(--muted); font-weight: 700; }
+.plan-card-name { font-family: var(--display); font-weight: 800; font-size: 20px; letter-spacing: -0.4px; margin-top: 3px; display: flex; align-items: center; gap: 8px; }
+.plan-card-top { font-family: var(--font); font-size: 10.5px; font-weight: 700; color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 40%, var(--hair)); padding: 2px 8px; border-radius: 999px; letter-spacing: 0.2px; }
+.meters { display: grid; gap: 14px; margin-top: 14px; }
+.meter-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.meter-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.meter-count { font-size: 12.5px; font-weight: 700; font-family: var(--num); }
+.meter-per { color: var(--muted); font-weight: 400; margin-left: 2px; }
+.meter-unlim { font-size: 12px; font-weight: 700; color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 38%, var(--hair)); padding: 3px 10px; border-radius: 999px; }
+.mbar { height: 7px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--hair); overflow: hidden; }
+.mbar-fill { height: 100%; border-radius: 999px; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
 
 /* ---- 2K / 4K scaling: crisp at any resolution ---------------------------------------------------- */
 @media (min-width: 2200px) { body { zoom: 1.25; } }

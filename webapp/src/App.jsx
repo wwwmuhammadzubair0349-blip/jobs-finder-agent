@@ -295,14 +295,14 @@ const AGENT_LABELS = {
 // Agent-team cards (user-facing). Link Checker & Publisher run in the
 // background but are hidden here to keep the team focused on what the user sees.
 const AGENTS = [
-  { key: "collect_jobs", name: "Scraper", emoji: "🔎" },
-  { key: "agent_analyst", name: "Analyst", emoji: "🧠" },
-  { key: "rank_jobs", name: "Ranker", emoji: "📊" },
-  { key: "cv_writer", name: "CV Writer", emoji: "✍️" },
-  { key: "cl_writer", name: "Cover Letter Writer", emoji: "✉️" },
-  { key: "render_cv", name: "Designer", emoji: "📄" },
-  { key: "send_telegram", name: "Telegram", emoji: "✈️" },
-  { key: "applicant", name: "Applicant", emoji: "🤖" },
+  { key: "collect_jobs", name: "Job search", emoji: "🔎" },
+  { key: "agent_analyst", name: "Analysis", emoji: "🧠" },
+  { key: "rank_jobs", name: "Matching", emoji: "📊" },
+  { key: "cv_writer", name: "CV writer", emoji: "✍️" },
+  { key: "cl_writer", name: "Cover letter", emoji: "✉️" },
+  { key: "render_cv", name: "CV design", emoji: "📄" },
+  { key: "send_telegram", name: "Delivery", emoji: "✈️" },
+  { key: "applicant", name: "Auto-apply", emoji: "🤖" },
 ];
 
 function AgentTeam({ status, current }) {
@@ -465,7 +465,7 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, com
         <div className="dash-hero-in">
           <div className="dash-hero-copy">
             <div className="dash-hi">{greet} 👋</div>
-            <div className="dash-hero-sub">{todayJobs.length} new match{todayJobs.length === 1 ? "" : "es"} today · {total} in your pipeline{savedJobs.length ? ` · ${savedJobs.length} saved` : ""}</div>
+            <div className="dash-hero-sub">{todayJobs.length} new match{todayJobs.length === 1 ? "" : "es"} today · {total} total match{total === 1 ? "" : "es"}{savedJobs.length ? ` · ${savedJobs.length} saved` : ""}</div>
           </div>
           <button className="btn dash-hero-btn" onClick={onRun}>▶ Run search now</button>
         </div>
@@ -504,28 +504,29 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, com
   );
 }
 
-// Agent grid — all agents fit on screen (no side-scroll), premium pulse on active.
+// Compact AI-team strip — tidy chips, live pulse when working.
 function AgentGrid({ status, current, running }) {
   const byName = Object.fromEntries((status || []).map((s) => [s.name, s]));
+  const anyActive = AGENTS.some((a) => { const s = byName[a.key]; return s?.last_run && (Date.now() - new Date(s.last_run).getTime()) < 45000; });
   return (
-    <div style={{ marginBottom: 8 }}>
-      <p className="section-title">🤖 Agent team {running && <span style={{ color: "var(--info)" }}>· live</span>}</p>
-      <div className="agent-grid">
+    <div className="card" style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <p className="section-title" style={{ margin: 0 }}>🤖 Your AI team</p>
+        <span className="ai-status">{anyActive || running ? <><span className="pulse-dot" />Working now</> : <><span className="status-dot" style={{ background: "var(--ok)" }} />All systems ready</>}</span>
+      </div>
+      <div className="ai-strip">
         {AGENTS.map((a) => {
           const s = byName[a.key];
           const ms = s?.last_run ? (Date.now() - new Date(s.last_run).getTime()) : Infinity;
-          const active = ms < 45000;          // this user's agent worked in the last 45s
-          const recent = ms < 3600000;        // within the last hour
+          const active = ms < 45000;
+          const recent = ms < 3600000;
           const state = active || recent ? "green" : s?.state === "red" ? "red" : (s?.state || "gray");
           const dot = state === "green" ? "var(--ok)" : state === "red" ? "var(--err)" : state === "yellow" ? "var(--warn)" : "var(--hair-strong)";
           return (
-            <div key={a.key} className={`agent-cell${active ? " active" : ""}`} title={a.name}>
-              <span className={`agent-avatar${active ? " spin" : ""}`}>{a.emoji}</span>
-              <span className="agent-name">{a.name}</span>
-              <span className="agent-when">
-                <span className="status-dot" style={{ background: dot }} />
-                {active ? <b style={{ color: "var(--accent)" }}>working…</b> : s?.last_run ? timeAgo(s.last_run) : "idle"}
-              </span>
+            <div key={a.key} className={`ai-chip${active ? " active" : ""}`} title={active ? "Working now" : s?.last_run ? `Active ${timeAgo(s.last_run)}` : "Ready"}>
+              <span className="ai-chip-ico">{a.emoji}</span>
+              <span className="ai-chip-name">{a.name}</span>
+              <span className="status-dot" style={{ background: dot, width: 7, height: 7 }} />
             </div>
           );
         })}

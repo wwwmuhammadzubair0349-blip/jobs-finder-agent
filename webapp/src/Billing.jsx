@@ -13,17 +13,16 @@ export function PlanBadge({ plan, onClick }) {
   );
 }
 
-// A single metric row with a usage bar.
+// A single metric row.
 function MeterRow({ mkey, u }) {
-  const period = u.period === "week" ? "this week" : "today";
+  const period = u.period === "week" ? "/wk" : "/day";
   if (u.unlimited) {
     return (
       <div className="meter">
         <div className="meter-top">
           <span className="meter-label">{METRIC_ICON[mkey]} {METRIC_LABELS[mkey]}</span>
-          <span className="meter-count" style={{ color: "var(--ok)" }}>Unlimited ∞</span>
+          <span className="meter-unlim">∞ Unlimited</span>
         </div>
-        <div className="bar-track"><div className="bar-fill" style={{ width: "100%", background: "color-mix(in srgb, var(--ok) 55%, transparent)" }} /></div>
       </div>
     );
   }
@@ -33,9 +32,9 @@ function MeterRow({ mkey, u }) {
     <div className="meter">
       <div className="meter-top">
         <span className="meter-label">{METRIC_ICON[mkey]} {METRIC_LABELS[mkey]}</span>
-        <span className="meter-count" style={{ color }}>{u.used}/{u.limit} <span className="hint" style={{ fontWeight: 400 }}>{period}</span></span>
+        <span className="meter-count" style={{ color }}>{u.used}/{u.limit}<span className="meter-per">{period}</span></span>
       </div>
-      <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%`, background: color }} /></div>
+      <div className="mbar"><div className="mbar-fill" style={{ width: `${pct}%`, background: color }} /></div>
     </div>
   );
 }
@@ -47,19 +46,19 @@ export function UsageMeters({ plan, onOpen, onManage }) {
   const isTop = plan.id === "proplus";
   const canManage = !!plan.has_subscription;
   return (
-    <div className="card">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <p className="section-title" style={{ margin: 0 }}>{planEmoji(plan.id)} Your plan · {plan.label}</p>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {isTop && <span className="tag" style={{ color: "var(--ok)", borderColor: "var(--ok)" }}>Top tier</span>}
-          <button className={`btn sm ${isTop ? "" : "primary"}`} onClick={onOpen}>{isTop ? "Change plan" : "⭐ Upgrade"}</button>
+    <div className="card plan-card">
+      <div className="plan-card-head">
+        <div>
+          <div className="plan-card-eyebrow">Your plan</div>
+          <div className="plan-card-name">{planEmoji(plan.id)} {plan.label}{isTop && <span className="plan-card-top">Top tier</span>}</div>
         </div>
+        <button className="btn primary sm" onClick={onOpen}>{isTop ? "Change" : "⭐ Upgrade"}</button>
       </div>
       <div className="meters">
         {order.map((k) => plan.usage[k] && <MeterRow key={k} mkey={k} u={plan.usage[k]} />)}
       </div>
       {canManage && onManage && (
-        <div style={{ marginTop: 12, textAlign: "right" }}>
+        <div style={{ marginTop: 14, textAlign: "right" }}>
           <button className="btn ghost sm" onClick={onManage}>Manage billing</button>
         </div>
       )}
