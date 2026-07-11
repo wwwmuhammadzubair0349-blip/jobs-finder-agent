@@ -4,7 +4,7 @@
 // stored subscription id or the billing email.
 import { one, run } from "../_shared/db.js";
 import { json } from "../_shared/kv.js";
-import { verifySignature, variantToPlan } from "../_shared/billing.js";
+import { verifySignature, variantToPlan, planRank } from "../_shared/billing.js";
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -28,10 +28,11 @@ export async function onRequestPost(context) {
   const uid = body?.meta?.custom_data?.user_id || null;
 
   // Resolve the account this event belongs to.
+  const cols = "SELECT id, plan, plan_expires_at FROM users";
   let user = null;
-  if (uid) user = await one(env, "SELECT id FROM users WHERE id = ?", uid);
-  if (!user && subId) user = await one(env, "SELECT id FROM users WHERE ls_subscription_id = ?", subId);
-  if (!user && attr.user_email) user = await one(env, "SELECT id FROM users WHERE lower(email) = lower(?)", attr.user_email);
+  if (uid) user = await one(env, `${cols} WHERE id = ?`, uid);
+  if (!user && subId) user = await one(env, `${cols} WHERE ls_subscription_id = ?`, subId);
+  if (!user && attr.user_email) user = await one(env, `${cols} WHERE lower(email) = lower(?)`, attr.user_email);
   if (!user) return json({ ok: true });
 
   const active = status === "active" || status === "on_trial";
@@ -39,9 +40,21 @@ export async function onRequestPost(context) {
   const dead = ["expired", "unpaid", "paused"].includes(status);
 
   if (active && plan) {
-    await run(env,
-      "UPDATE users SET plan = ?, plan_expires_at = ?, ls_subscription_id = ?, ls_customer_id = COALESCE(?, ls_customer_id) WHERE id = ?",
-      plan, attr.renews_at || attr.ends_at || null, subId, custId, user.id);
+    // End-of-period downgrade: if the new plan is LOWER than the one the user
+    // is currently entitled to and their paid period hasn't ended yet, keep
+    // their current benefits until then. The renewal event (once the period
+    // rolls over) will land here again and apply the lower plan normally.
+    const isDeferredDowngrade = planRank(plan) < planRank(user.plan)
+      && user.plan_expires_at && Date.now() < Date.parse(user.plan_expires_at);
+    if (isDeferredDowngrade) {
+      await run(env,
+        "UPDATE users SET ls_subscription_id = ?, ls_customer_id = COALESCE(?, ls_customer_id) WHERE id = ?",
+        subId, custId, user.id);
+    } else {
+      await run(env,
+        "UPDATE users SET plan = ?, plan_expires_at = ?, ls_subscription_id = ?, ls_customer_id = COALESCE(?, ls_customer_id) WHERE id = ?",
+        plan, attr.renews_at || attr.ends_at || null, subId, custId, user.id);
+    }
   } else if (cancelled && plan) {
     await run(env,
       "UPDATE users SET plan = ?, plan_expires_at = ?, ls_subscription_id = ?, ls_customer_id = COALESCE(?, ls_customer_id) WHERE id = ?",

@@ -102,8 +102,8 @@ export function PricingModal({ currentId = "free", onClose, onChoose, onManage }
                 {isCurrent
                   ? <button className="btn sm" disabled style={{ opacity: 0.7 }}>Current plan</button>
                   : isDown
-                    ? <button className="btn ghost sm" onClick={() => onChoose(p.id)}>Switch</button>
-                    : <button className="btn primary sm" onClick={() => onChoose(p.id)}>Upgrade →</button>}
+                    ? <button className="btn ghost sm" onClick={() => onChoose(p.id)}>Downgrade</button>
+                    : <button className="btn primary sm" onClick={() => onChoose(p.id)}>{currentId === "free" ? "Upgrade →" : "Switch →"}</button>}
               </div>
             );
           })}

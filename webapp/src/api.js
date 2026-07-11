@@ -26,6 +26,7 @@ export const api = {
   regenCode: () => req("/code", { method: "POST" }),
   // billing
   checkout: (plan) => req("/checkout", { method: "POST", body: JSON.stringify({ plan }) }),
+  changePlan: (plan) => req("/change-plan", { method: "POST", body: JSON.stringify({ plan }) }),
   billingPortal: () => req("/billing-portal"),
   // admin
   adminUsers: () => req("/admin-users"),

@@ -26,6 +26,10 @@ export function planToVariant(env, plan) {
   return map[(plan || "").toLowerCase()] || null;
 }
 
+// Plan ordering for upgrade/downgrade detection.
+export const PLAN_RANK = { free: 0, starter: 1, pro: 2, proplus: 3 };
+export function planRank(id) { return PLAN_RANK[(id || "free").toLowerCase()] ?? 0; }
+
 // Lemon Squeezy variant id -> our plan id (reverse of the above).
 export function variantToPlan(env, variantId) {
   const v = String(variantId || "");

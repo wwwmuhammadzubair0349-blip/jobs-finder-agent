@@ -133,6 +133,29 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
     }
   }
 
+  // Free user → new checkout. Existing subscriber → in-app plan switch.
+  async function choosePlan(planId) {
+    const current = data?.plan?.id || "free";
+    if (current === "free") return startCheckout(planId);
+    setShowPricing(false);
+    try {
+      const r = await api.changePlan(planId);
+      if (r?.unchanged) { flash("That's already your plan."); return; }
+      if (r?.ok) {
+        flash(r.direction === "upgrade"
+          ? "🎉 Upgraded! A prorated charge was applied and your new limits are live."
+          : "✅ Downgrade scheduled — you keep your current plan until the end of this billing period.");
+        setTimeout(() => { load(); reloadMe(); }, 2500);
+        return;
+      }
+      if (r?.error === "no_subscription") return startCheckout(planId);
+      flash("Couldn't change your plan — try again.");
+    } catch (e) {
+      if (e.message === "no_subscription") return startCheckout(planId);
+      flash(e.message === "billing_unconfigured" ? "Payments aren't enabled yet." : "Couldn't change your plan.");
+    }
+  }
+
   async function manageBilling() {
     try {
       const r = await api.billingPortal();
@@ -205,7 +228,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         <PricingModal
           currentId={data?.plan?.id || "free"}
           onClose={() => setShowPricing(false)}
-          onChoose={startCheckout}
+          onChoose={choosePlan}
           onManage={manageBilling}
         />
       )}
