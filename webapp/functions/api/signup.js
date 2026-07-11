@@ -3,6 +3,7 @@
 import { hashPassword } from "../_shared/auth.js";
 import { one, run, uuid, connectionCode, nowIso, DEFAULT_PROFILE, DEFAULT_SEARCH, DEFAULT_SETTINGS } from "../_shared/db.js";
 import { json, badRequest, rateLimit, clientIp } from "../_shared/kv.js";
+import { verifyTurnstile } from "../_shared/turnstile.js";
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -16,6 +17,10 @@ export async function onRequestPost(context) {
   try { body = await request.json(); } catch { return badRequest("invalid body"); }
   // Honeypot: real users never fill this hidden field; bots do.
   if ((body.website || body.hp || "").trim()) return json({ ok: true });
+  // Human check (Cloudflare Turnstile). No-op until keys are configured.
+  if (!(await verifyTurnstile(env, body.turnstile || body.cfToken, ip))) {
+    return json({ error: "Please complete the human verification and try again." }, { status: 400 });
+  }
   const email = (body.email || "").trim().toLowerCase();
   const password = body.password || "";
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 160) return badRequest("Enter a valid email");

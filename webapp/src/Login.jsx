@@ -1,5 +1,40 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { api } from "./api";
+
+// Loads the Cloudflare Turnstile script once and renders a widget into `elRef`.
+// Calls onToken with the verification token (or "" on expiry/error). Returns a
+// reset() so callers can clear a spent token after a failed submit.
+function useTurnstile(elRef, onToken) {
+  const widgetId = useRef(null);
+  const [key, setKey] = useState("");
+  useEffect(() => {
+    let dead = false;
+    api.turnstileKey().then((r) => { if (!dead) setKey(r.key || ""); }).catch(() => {});
+    return () => { dead = true; };
+  }, []);
+  useEffect(() => {
+    if (!key || !elRef.current) return;
+    const SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    function render() {
+      if (!window.turnstile || !elRef.current || widgetId.current !== null) return;
+      widgetId.current = window.turnstile.render(elRef.current, {
+        sitekey: key, theme: "auto",
+        callback: (t) => onToken(t),
+        "expired-callback": () => onToken(""),
+        "error-callback": () => onToken(""),
+      });
+    }
+    if (window.turnstile) { render(); return; }
+    let s = document.querySelector(`script[src="${SRC}"]`);
+    if (!s) { s = document.createElement("script"); s.src = SRC; s.async = true; s.defer = true; document.head.appendChild(s); }
+    const iv = setInterval(() => { if (window.turnstile) { clearInterval(iv); render(); } }, 120);
+    return () => clearInterval(iv);
+  }, [key]);
+  return {
+    enabled: !!key,
+    reset: () => { try { if (widgetId.current !== null) window.turnstile.reset(widgetId.current); } catch {} },
+  };
+}
 
 const FEATURES = [
   { icon: "🔎", title: "Searches 24/7", text: "Indeed, LinkedIn, Adzuna, Jooble & more — across every country you choose." },
@@ -17,22 +52,27 @@ export default function Login({ onLogin, initialMode = "signup", onBack }) {
   const [busy, setBusy] = useState(false);
   const [remember, setRemember] = useState(true);
   const [hp, setHp] = useState(""); // honeypot — must stay empty
+  const [token, setToken] = useState(""); // Turnstile token
+  const tsEl = useRef(null);
+  const ts = useTurnstile(tsEl, setToken);
 
   async function submit(e) {
     e.preventDefault();
+    if (ts.enabled && !token) { setErr("Please complete the human verification below."); return; }
     setErr(""); setNote(""); setBusy(true);
     try {
       if (mode === "signup") {
-        await api.signup(email, password, hp);
+        await api.signup(email, password, hp, token);
         localStorage.setItem("jf_new_user", "1");
         setMode("login");
         setNote("Account created 🎉 — log in to get started.");
       } else {
-        const r = await api.login(email, password, remember);
+        const r = await api.login(email, password, remember, token);
         onLogin(r);
       }
     } catch (e) {
       setErr(e.message || "Something went wrong");
+      ts.reset(); setToken(""); // tokens are single-use
     } finally {
       setBusy(false);
     }
@@ -101,6 +141,8 @@ export default function Login({ onLogin, initialMode = "signup", onBack }) {
               Remember me for 30 days
             </label>
           )}
+
+          <div ref={tsEl} className="turnstile-box" style={{ marginTop: 4 }} />
 
           <button className="btn primary big" disabled={busy}>{busy ? "Please wait…" : mode === "signup" ? "Create my free account" : "Log in"}</button>
           {note && <div className="ok-msg">{note}</div>}

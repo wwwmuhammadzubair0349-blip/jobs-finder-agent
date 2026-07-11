@@ -13,8 +13,9 @@ async function req(path, opts = {}) {
 
 export const api = {
   me: () => req("/me"),
-  signup: (email, password, website = "") => req("/signup", { method: "POST", body: JSON.stringify({ email, password, website }) }),
-  login: (email, password, remember = true) => req("/login", { method: "POST", body: JSON.stringify({ email, password, remember }) }),
+  turnstileKey: () => req("/turnstile-key"),
+  signup: (email, password, website = "", turnstile = "") => req("/signup", { method: "POST", body: JSON.stringify({ email, password, website, turnstile }) }),
+  login: (email, password, remember = true, turnstile = "") => req("/login", { method: "POST", body: JSON.stringify({ email, password, remember, turnstile }) }),
   logout: () => req("/logout", { method: "POST" }),
   data: () => req("/data"),
   pool: (q = "", slug = "") => req(`/pool?q=${encodeURIComponent(q)}&slug=${encodeURIComponent(slug)}`),

@@ -3,6 +3,7 @@
 import { createSessionCookie, verifyPassword } from "../_shared/auth.js";
 import { one } from "../_shared/db.js";
 import { json, badRequest, kvJSON } from "../_shared/kv.js";
+import { verifyTurnstile } from "../_shared/turnstile.js";
 
 const MAX_FAILS = 5;
 const WINDOW = 15 * 60;
@@ -20,6 +21,10 @@ export async function onRequestPost(context) {
   const password = body.password || "";
   if (!email || !password) return badRequest("Email and password required");
   if (password.length > 200 || email.length > 160) return badRequest("Invalid credentials");
+  // Human check (Cloudflare Turnstile). No-op until keys are configured.
+  if (!(await verifyTurnstile(env, body.turnstile || body.cfToken, ip))) {
+    return json({ error: "Please complete the human verification and try again." }, { status: 400 });
+  }
 
   const user = await one(env, "SELECT * FROM users WHERE email = ?", email);
   const ok = user && user.status !== "disabled" && (await verifyPassword(password, user.password_hash));
