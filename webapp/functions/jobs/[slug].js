@@ -1,7 +1,7 @@
 // GET /jobs/:slug — PUBLIC server-rendered job landing page (full SEO +
 // JSON-LD JobPosting). "Apply now" routes to signup — public visitors create
 // an account to apply and get a tailored CV.
-import { shell, BRAND, esc } from "../_shared/page.js";
+import { shell, BRAND, esc, cleanText } from "../_shared/page.js";
 
 function initials(name) {
   const w = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -29,15 +29,16 @@ export async function onRequestGet(context) {
     }), { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
 
-  const descRaw = (job.description || `${job.title} position at ${job.company} in ${job.location}.`).replace(/\s+/g, " ").trim();
+  const descRaw = cleanText(job.description) || `${cleanText(job.title)} position at ${cleanText(job.company)} in ${cleanText(job.location)}.`;
+  const jobTitle = cleanText(job.title), jobCompany = cleanText(job.company), jobLoc = cleanText(job.location);
   const metaDesc = descRaw.slice(0, 158);
   const posted = (job.posted_at || job.discovered_at || "").slice(0, 10);
 
   const jsonLd = {
-    "@context": "https://schema.org/", "@type": "JobPosting", title: job.title,
+    "@context": "https://schema.org/", "@type": "JobPosting", title: jobTitle,
     description: descRaw.slice(0, 1500), datePosted: posted || undefined,
-    hiringOrganization: { "@type": "Organization", name: job.company || "Unknown" },
-    jobLocation: { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: job.location || "" } },
+    hiringOrganization: { "@type": "Organization", name: jobCompany || "Unknown" },
+    jobLocation: { "@type": "Place", address: { "@type": "PostalAddress", addressLocality: jobLoc || "" } },
     ...(job.remote ? { jobLocationType: "TELECOMMUTE" } : {}),
     ...(job.salary ? { baseSalary: { "@type": "MonetaryAmount", value: { "@type": "QuantitativeValue", value: job.salary } } } : {}),
     directApply: false, url: `${base}/jobs/${slug}`,
@@ -49,8 +50,8 @@ export async function onRequestGet(context) {
     <div class="jc-top" style="margin-bottom:14px">
       <div class="jc-logo" style="width:52px;height:52px;font-size:18px">${esc(initials(job.company))}</div>
       <div style="flex:1">
-        <h2 style="margin:0;font-size:22px">${esc(job.title)}</h2>
-        <div class="jc-sub" style="font-size:14px">${esc(job.company || "")}${job.location ? " · " + esc(job.location) : ""}</div>
+        <h2 style="margin:0;font-size:22px">${esc(jobTitle)}</h2>
+        <div class="jc-sub" style="font-size:14px">${esc(jobCompany)}${jobLoc ? " · " + esc(jobLoc) : ""}</div>
       </div>
     </div>
     <div class="jc-tags" style="margin:0 0 18px">
@@ -75,7 +76,7 @@ export async function onRequestGet(context) {
 </section>`;
 
   return new Response(shell({
-    base, title: `${esc(job.title)} at ${esc(job.company || "—")} — ${BRAND.name}`,
+    base, title: `${esc(jobTitle)} at ${esc(jobCompany || "—")} — ${BRAND.name}`,
     description: metaDesc, canonicalPath: `/jobs/${slug}`, active: "jobs",
     headExtra: `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`,
     hero: null, body,

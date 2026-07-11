@@ -14,6 +14,24 @@ export function esc(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// Repair mojibake + strip HTML/entities from scraped job text.
+export function cleanText(s) {
+  if (!s) return "";
+  let t = String(s).replace(/�/g, "");
+  if (/[ÂÃâ][-¿]/.test(t) && !/[^ -ÿ]/.test(t)) {
+    try {
+      const b = new Uint8Array(t.length);
+      for (let i = 0; i < t.length; i++) b[i] = t.charCodeAt(i) & 0xff;
+      t = new TextDecoder("utf-8", { fatal: false }).decode(b);
+    } catch { /* leave */ }
+  }
+  t = t.replace(/�/g, "").replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"').replace(/&#0?39;|&apos;/gi, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n))
+    .replace(/&[a-z]+;/gi, " ").replace(/\s{2,}/g, " ").trim();
+  return t;
+}
+
 const STYLES = `
 :root{--bg:#f4f5fa;--surface:#fff;--surface-2:#f8f9fd;--ink:#101223;--ink2:#3c4258;--muted:#6e7590;--hair:#e4e7f2;--hair2:#d3d8e8;--accent:#4f46e5;--accent2:#8b5cf6;--accent-weak:#eef0ff;--grad:linear-gradient(135deg,#4f46e5,#8b5cf6);--ok:#16a34a;--shadow:0 1px 2px rgba(21,23,43,.05),0 8px 26px rgba(21,23,43,.07);--shadow-lg:0 16px 50px rgba(21,23,43,.16);--display:"Bricolage Grotesque",-apple-system,"Segoe UI",sans-serif}
 @media(prefers-color-scheme:dark){:root{--bg:#0a0c14;--surface:#131624;--surface-2:#171b2c;--ink:#eef0fa;--ink2:#c4c9dc;--muted:#8a91ac;--hair:#232840;--hair2:#2e3552;--accent:#818cf8;--accent2:#a78bfa;--accent-weak:#1d2040;--grad:linear-gradient(135deg,#6366f1,#a78bfa);--shadow:0 1px 2px rgba(0,0,0,.35),0 10px 30px rgba(0,0,0,.4);--shadow-lg:0 18px 56px rgba(0,0,0,.6)}}

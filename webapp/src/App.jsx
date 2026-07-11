@@ -6,6 +6,7 @@ import Tour from "./Tour";
 import { Kpi, JobCard, JobDetail, Empty } from "./parts";
 import { ProfileEditor, SearchEditor, ScheduleEditor, AutoApplyEditor } from "./Editors";
 import { PlanBadge, UsageMeters, PricingModal } from "./Billing";
+import { cleanText } from "./util";
 import { IconToday, IconJobs, IconApps, IconProfile, IconSearch, IconClock, IconAlert, IconRun, IconRefresh, IconOut, IconSun, IconGlobe } from "./icons";
 
 const TABS = [
@@ -197,8 +198,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         <RunState latest={data?.latest_run} />
         <span className="spacer" />
         {data?.plan && <PlanBadge plan={data.plan} onClick={() => setShowPricing(true)} />}
-        <button className="icon-btn" title="Run now" onClick={runNow} disabled={running}><IconRun /></button>
-        <button className="icon-btn" title="Refresh" onClick={load}><IconRefresh /></button>
+        <button className="icon-btn" title="Refresh data" onClick={load}><IconRefresh /></button>
         <button className="icon-btn" title="Theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><IconSun /></button>
         <button className="icon-btn" title="Sign out" onClick={onLogout}><IconOut /></button>
       </div>
@@ -213,7 +213,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} onSeeAll={() => setTab("jobs")} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
         {tab === "jobs" && <MyJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
@@ -427,7 +427,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
   );
 }
 
-function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, complete, goProfile, onRun, onUpgrade, onManage }) {
+function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, complete, goProfile, onRun, onUpgrade, onManage, onSeeAll }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -456,7 +456,8 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, com
   const greet = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
   const lists = { total: allJobs, today: todayJobs, applied: appliedJobs, auto: autoJobs, saved: savedJobs, ready: readyJobs, interviews: interviewJobs };
   const full = lists[filter] || [];
-  const shown = full.slice(0, 60);
+  const PREVIEW = 8;
+  const shown = full.slice(0, PREVIEW);
   const titleMap = { total: "All my jobs", today: "Found today", applied: "Applied", auto: "Auto-applied", saved: "Saved jobs", ready: "Ready documents", interviews: "Interviews" };
 
   return (
@@ -485,14 +486,17 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, com
 
       <div className="dash-grid">
         <div className="dash-main">
-          <p className="section-title">{titleMap[filter]} · {full.length}{full.length > shown.length ? ` (showing ${shown.length})` : ""}</p>
+          <p className="section-title">{titleMap[filter]} · {full.length}</p>
           {shown.length === 0
             ? (!complete
                 ? <ProfileCta goProfile={goProfile} />
                 : (filter === "today" || filter === "total")
                   ? <HuntingCta onRun={onRun} />
                   : <Empty icon="🗂" title={`No ${titleMap[filter].toLowerCase()} yet`} sub="Tap another stat above." />)
-            : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} onSave={onSave} onOpen={onOpen} />)}</div>}
+            : <>
+                <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} onSave={onSave} onOpen={onOpen} />)}</div>
+                {full.length > shown.length && <button className="btn ghost see-all" onClick={onSeeAll}>See all {full.length} in My jobs →</button>}
+              </>}
         </div>
         <aside className="dash-rail">
           <SetupChecklist complete={complete} telegram={me.user?.telegram_connected} goProfile={goProfile} />
@@ -801,14 +805,14 @@ function PoolTab({ targetSlug, clearTarget, onShare }) {
           {filtered.map((j) => (
             <div key={j.id} className="card" style={j.slug === targetSlug ? { borderColor: "var(--accent)", boxShadow: "0 0 0 3px var(--accent-weak)" } : {}}>
               {j.slug === targetSlug && <div className="tag" style={{ marginBottom: 8, color: "var(--accent)", borderColor: "var(--accent)" }}>🔗 Shared job</div>}
-              <div className="job-title">{j.title}</div>
-              <div className="job-sub">{j.company}{j.location ? ` · ${j.location}` : ""}</div>
+              <div className="job-title">{cleanText(j.title)}</div>
+              <div className="job-sub">{cleanText(j.company)}{j.location ? ` · ${cleanText(j.location)}` : ""}</div>
               <div className="job-meta">
                 {j.remote && <span className="tag remote">🌍 Remote</span>}
                 {j.salary && <span className="tag">💰 {j.salary}</span>}
                 {j.source && <span className="tag">{j.source}</span>}
               </div>
-              {j.description && <div className="hint" style={{ margin: "4px 0 8px" }}>{j.description.slice(0, 150)}…</div>}
+              {j.description && <div className="hint" style={{ margin: "4px 0 8px" }}>{cleanText(j.description).slice(0, 160)}…</div>}
               <div className="row-actions">
                 {j.url && <a className="btn primary sm" href={j.url} target="_blank" rel="noreferrer">Apply <IconExtMini /></a>}
                 <button className="btn sm" onClick={() => onShare(j)}>🔗 Share</button>

@@ -713,6 +713,7 @@ select.status {
 }
 /* Today keeps ONE roomy column in the main area (no cramped 2-col wrap). */
 .dash-main .job-list { grid-template-columns: 1fr !important; }
+.see-all { width: 100%; justify-content: center; margin-top: 12px; font-weight: 600; }
 
 /* ---- Premium job cards + details modal --------------------------------------- */
 .jobcard.clickable { cursor: pointer; }

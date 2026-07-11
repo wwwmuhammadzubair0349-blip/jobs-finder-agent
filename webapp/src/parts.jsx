@@ -1,5 +1,6 @@
 import React from "react";
 import { IconExt } from "./icons";
+import { cleanText } from "./util";
 
 export function Kpi({ value, label }) {
   return (
@@ -87,8 +88,8 @@ export function JobCard({ job, appStatus, onStatus, onSend, onShare, onSave, onO
         <div className="jc-head">
           <div className="jc-mono">{monogram(job.company)}</div>
           <div style={{ minWidth: 0 }}>
-            <div className="job-title">{job.title}</div>
-            <div className="job-sub">{job.company}{job.location ? ` · ${job.location}` : ""}</div>
+            <div className="job-title">{cleanText(job.title)}</div>
+            <div className="job-sub">{cleanText(job.company)}{job.location ? ` · ${cleanText(job.location)}` : ""}</div>
           </div>
         </div>
         <div className="jc-side">
@@ -138,8 +139,8 @@ export function JobDetail({ job, appStatus, onStatus, onSend, onShare, onSave, o
         <div className="jd-head">
           <div className="jc-mono lg">{monogram(job.company)}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="jd-title">{job.title}</div>
-            <div className="job-sub">{job.company}{job.location ? ` · ${job.location}` : ""}</div>
+            <div className="jd-title">{cleanText(job.title)}</div>
+            <div className="job-sub">{cleanText(job.company)}{job.location ? ` · ${cleanText(job.location)}` : ""}</div>
           </div>
           {onSave && <button className={`save-star${saved ? " on" : ""}`} onClick={toggleSave} title={saved ? "Saved" : "Save"}>{saved ? "★" : "☆"}</button>}
           <button className="icon-btn" onClick={onClose}>✕</button>
@@ -156,7 +157,7 @@ export function JobDetail({ job, appStatus, onStatus, onSend, onShare, onSave, o
 
         {job.why && <div className="why" style={{ marginTop: 12 }}>🎯 Why it fits: {job.why}</div>}
 
-        <div className="jd-desc">{job.description || "No description captured for this job."}</div>
+        <div className="jd-desc">{cleanText(job.description) || "No description captured for this job."}</div>
 
         <div className="jd-actions">
           {job.url && <a className="btn primary" href={job.url} target="_blank" rel="noreferrer">Apply on site <IconExt /></a>}

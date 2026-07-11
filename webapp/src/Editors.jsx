@@ -79,7 +79,7 @@ export function AutoApplyEditor({ initial, onSave, plan = "free" }) {
           <div className="field"><label>Max applications / day</label><input type="number" min="1" max={planCap} value={a.daily_cap} onChange={(e) => set("daily_cap", Math.min(parseInt(e.target.value || "1", 10), planCap))} /><div className="hint">Your plan allows up to <b>{planCap}</b>/day {PLAN_EMOJI[plan] || ""}</div></div>
         </div>
 
-        <div className="hint" style={{ marginTop: 4 }}>You get a Telegram receipt for every application. Turn this off anytime — it's a kill switch.</div>
+        <div className="hint" style={{ marginTop: 4 }}>You get a Telegram receipt for every application, and you can turn this off anytime.</div>
       </div>
       <SaveBar dirty={dirty} busy={busy} saved={saved} onSave={save} />
     </div>
@@ -286,7 +286,7 @@ export function SearchEditor({ initial, onSave, plan = "free" }) {
           <label>Countries · {selList.length}/{maxCountries === UNLIMITED ? "∞" : maxCountries} {PLAN_EMOJI[plan] || ""}</label>
           <select className="country-select" value="" onChange={(e) => { addCountry(e.target.value); e.target.value = ""; }}>
             <option value="">+ Add a country…</option>
-            {COUNTRIES.filter((x) => !sel.has(x.c)).map(({ c, n }) => <option key={c} value={c}>{n}{ADZUNA.has(c) ? "" : " (via Jooble/Apify)"}</option>)}
+            {COUNTRIES.filter((x) => !sel.has(x.c)).map(({ c, n }) => <option key={c} value={c}>{n}</option>)}
           </select>
           {selList.length > 0 && (
             <div className="chip-list">
