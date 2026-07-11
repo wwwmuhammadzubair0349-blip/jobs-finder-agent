@@ -79,21 +79,45 @@ export async function onRequestPost(context) {
   if (msg && msg.text) {
     const chatId = String(msg.chat.id);
     const text = msg.text.trim();
+
+    // Secure deep-link connect: /start <one-time-token> minted from the dashboard.
+    // The token proves the person is logged into the account, so a leaked code
+    // can't hijack delivery. Single-use + 3-minute expiry (see tg-link-token.js).
+    const startTok = text.match(/^\/start\s+([a-f0-9]{16,64})$/i);
+    if (startTok) {
+      const key = `tglink:${startTok[1].toLowerCase()}`;
+      const raw = await env.KV.get(key);
+      if (raw) {
+        await env.KV.delete(key); // consume immediately (single-use)
+        let uid = null;
+        try { uid = JSON.parse(raw).uid; } catch {}
+        const u = uid ? await one(env, "SELECT id FROM users WHERE id = ?", uid) : null;
+        if (u) {
+          // One link covers both bots — chat id is the same across bots per user.
+          await run(env, "UPDATE users SET telegram_chat_id = ?, interview_chat_id = ? WHERE id = ?", chatId, chatId, u.id);
+          await send(token, chatId,
+            `✅ <b>You're connected!</b>\n${RULE}\n` +
+            `Fresh matching jobs — each with a tailored <b>CV</b> + <b>cover letter</b> + how-to-apply steps — will land right here. 🚀\n\n` +
+            `🧠 Your <b>Interview Coach bot</b> is linked too — open @interview_prep_coach_bot and press Start.`,
+            [[btnUrl("📢 Follow the channel", `https://t.me/${channel}`)]]);
+        } else {
+          await send(token, chatId, `⚠️ <b>Couldn't connect</b>\n${RULE}\nOpen your dashboard and tap <b>Connect Telegram</b> again.`);
+        }
+      } else {
+        await send(token, chatId, `⌛ <b>This connect link expired</b>\n${RULE}\nLinks last 3 minutes. Open your dashboard, tap <b>Connect Telegram</b>, and use the fresh link.`,
+          [[btnUrl("🔗 Open dashboard", dash)]]);
+      }
+      return json({ ok: true });
+    }
+
     const m = text.match(CODE_RE);
     if (m) {
-      const code = m[0].toUpperCase();
-      const user = await one(env, "SELECT id, email FROM users WHERE connection_code = ?", code);
-      if (user) {
-        // One code links ALL bots — chat id is the same across bots for a user.
-        await run(env, "UPDATE users SET telegram_chat_id = ?, interview_chat_id = ? WHERE id = ?", chatId, chatId, user.id);
-        await send(token, chatId,
-          `✅ <b>You're connected!</b>\n${RULE}\n` +
-          `Fresh matching jobs — each with a tailored <b>CV</b> + <b>cover letter</b> + how-to-apply steps — will land right here. 🚀\n\n` +
-          `🧠 Your <b>Interview Coach bot</b> is linked too — open @interview_prep_coach_bot and press Start.`,
-          [[btnUrl("📢 Follow the channel", `https://t.me/${channel}`)]]);
-      } else {
-        await send(token, chatId, `❌ <b>Code not recognised</b>\n${RULE}\nCopy the exact code from your dashboard (looks like <code>JF-XXXXXX</code>) and send it here.`);
-      }
+      // Legacy code path no longer links an account (that was hijackable if the
+      // code leaked). Direct the user to the secure, logged-in dashboard button.
+      await send(token, chatId,
+        `🔒 <b>Connect from your dashboard</b>\n${RULE}\n` +
+        `For your security, connecting now happens from your account. Open your dashboard and tap <b>Connect Telegram</b> — I'll link this chat automatically.`,
+        [[btnUrl("🔗 Open dashboard", dash)]]);
     } else {
       const already = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
       if (already) {
@@ -109,7 +133,7 @@ export async function onRequestPost(context) {
           `✍️ Auto-write a tailored <b>CV + cover letter</b> for each match\n` +
           `✈️ Send them right here, ready to apply in minutes\n` +
           `🧠 Coach you through interviews with a real AI mock interview\n\n` +
-          `👇 <b>Step 1:</b> create your free account, then send me the code it gives you.`,
+          `👇 <b>Step 1:</b> create your free account, then tap <b>Connect Telegram</b> in your dashboard.`,
           [
             [btnUrl("🚀 Create my free account", dash)],
             [btnUrl("📢 Follow the channel", `https://t.me/${channel}`)],

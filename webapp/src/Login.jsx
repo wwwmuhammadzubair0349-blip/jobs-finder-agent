@@ -47,6 +47,7 @@ export default function Login({ onLogin, initialMode = "signup", onBack }) {
   const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState("");
   const [password, setP] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -58,6 +59,10 @@ export default function Login({ onLogin, initialMode = "signup", onBack }) {
 
   async function submit(e) {
     e.preventDefault();
+    if (mode === "signup") {
+      if (password.length < 8) { setErr("Password must be at least 8 characters."); return; }
+      if (password !== confirm) { setErr("Passwords don't match."); return; }
+    }
     if (ts.enabled && !token) { setErr("Please complete the human verification below."); return; }
     setErr(""); setNote(""); setBusy(true);
     try {
@@ -132,8 +137,14 @@ export default function Login({ onLogin, initialMode = "signup", onBack }) {
           </div>
           <div className="field">
             <label>Password</label>
-            <input type="password" value={password} onChange={(e) => setP(e.target.value)} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder="At least 6 characters" />
+            <input type="password" value={password} onChange={(e) => setP(e.target.value)} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder={mode === "signup" ? "At least 8 characters" : "Your password"} />
           </div>
+          {mode === "signup" && (
+            <div className="field">
+              <label>Confirm password</label>
+              <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" placeholder="Re-enter your password" />
+            </div>
+          )}
 
           {mode === "login" && (
             <label className="checkbox remember-row">

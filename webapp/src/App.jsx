@@ -468,7 +468,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
         <span className={`check-dot ${telegram ? "done" : ""}`}>{telegram ? "✓" : "2"}</span>
         <div style={{ flex: 1 }}>
           <div className="check-title">Connect Telegram</div>
-          <div className="hint">{telegram ? "Connected — jobs arrive on your phone." : "Use the card below — send your code to the Jobs bot."}</div>
+          <div className="hint">{telegram ? "Connected — jobs arrive on your phone." : "Tap Connect Telegram below — it links in one tap, no codes."}</div>
         </div>
       </div>
     </div>
@@ -597,16 +597,38 @@ function AgentGrid({ status, current, running, autoApplyOn, onAutoApplyHelp }) {
   );
 }
 
-// Telegram connection status + code.
+// Telegram connection — secure one-time deep link (no codes to copy). Tapping
+// Connect opens the bot with a single-use, 3-minute token bound to this account;
+// the card auto-updates once the link completes.
 function ConnectCard({ me, reloadMe }) {
-  const u = me.user || {};
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const connected = u.telegram_connected;
-  async function regen() { setBusy(true); try { await api.regenCode(); reloadMe(); } finally { setBusy(false); } }
-  async function copyCode() {
-    try { await navigator.clipboard.writeText(u.connection_code || ""); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+  const [waiting, setWaiting] = useState(false);
+  const [err, setErr] = useState("");
+  const pollRef = useRef(null);
+  const connected = me.user?.telegram_connected;
+
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  async function connect() {
+    setErr(""); setBusy(true);
+    try {
+      const r = await api.tgLinkToken();
+      window.open(r.url, "_blank", "noopener");
+      setWaiting(true);
+      const started = Date.now();
+      clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        try {
+          const m = await api.me();
+          if (m?.user?.telegram_connected) { clearInterval(pollRef.current); setWaiting(false); reloadMe(); }
+        } catch {}
+        if (Date.now() - started > 190000) { clearInterval(pollRef.current); setWaiting(false); }
+      }, 3000);
+    } catch {
+      setErr("Couldn't start the connection — please try again.");
+    } finally { setBusy(false); }
   }
+
   if (connected) {
     return (
       <div className="card" style={{ borderColor: "color-mix(in srgb, var(--ok) 45%, var(--hair))", display: "flex", alignItems: "center", gap: 10 }}>
@@ -623,15 +645,19 @@ function ConnectCard({ me, reloadMe }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 18 }}>🔌</span><span style={{ fontWeight: 650 }}>Telegram not connected</span>
       </div>
-      <div className="hint" style={{ margin: "6px 0 10px" }}>Open our Jobs bot and send it this code — everything connects with that one code:</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <div className="code-chip">{u.connection_code || "—"}</div>
-        <button className="btn sm" onClick={copyCode}>{copied ? "✓ Copied" : "📋 Copy"}</button>
+      <div className="hint" style={{ margin: "6px 0 10px" }}>
+        {waiting
+          ? "Waiting for you to press Start in Telegram — this updates automatically once you're linked."
+          : "One tap: Telegram opens and links securely to your account. No codes to copy."}
       </div>
-      <div className="row-actions" style={{ marginTop: 10 }}>
-        <a className="btn primary sm" href="https://t.me/jobs_finder_agent_bot" target="_blank" rel="noreferrer">✈ Open Jobs bot</a>
-        <button className="btn ghost sm" onClick={regen} disabled={busy}>New code</button>
+      <div className="row-actions">
+        <button className="btn primary sm" onClick={connect} disabled={busy || waiting}>
+          {busy ? "Opening…" : waiting ? "⏳ Waiting for Telegram…" : "✈ Connect Telegram"}
+        </button>
+        {waiting && <button className="btn ghost sm" onClick={connect} disabled={busy}>Resend link</button>}
       </div>
+      {err && <div className="err-msg" style={{ marginTop: 8 }}>{err}</div>}
+      <div className="hint" style={{ marginTop: 10, fontSize: 12 }}>🔒 The link is single-use and expires in 3 minutes.</div>
     </div>
   );
 }

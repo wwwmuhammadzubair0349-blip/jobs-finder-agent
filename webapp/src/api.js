@@ -27,6 +27,7 @@ export const api = {
   saveJob: (jobId, saved) => req("/save-job", { method: "POST", body: JSON.stringify({ job_id: jobId, saved }) }),
   interviewChat: (payload) => req("/interview-chat", { method: "POST", body: JSON.stringify(payload) }),
   regenCode: () => req("/code", { method: "POST" }),
+  tgLinkToken: () => req("/tg-link-token", { method: "POST" }),
   // billing
   checkout: (plan) => req("/checkout", { method: "POST", body: JSON.stringify({ plan }) }),
   changePlan: (plan) => req("/change-plan", { method: "POST", body: JSON.stringify({ plan }) }),

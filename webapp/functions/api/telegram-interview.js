@@ -35,23 +35,42 @@ export async function onRequestPost(context) {
   if (!chatId) return json({ ok: true });
   const text = (msg?.text || "").trim();
 
-  // ---- Connection (via typed code) ----
+  // ---- Secure deep-link connect: /start <token> minted from the dashboard ----
+  const startTok = text.match(/^\/start\s+([a-f0-9]{16,64})$/i);
+  if (startTok) {
+    const key = `tglink:${startTok[1].toLowerCase()}`;
+    const raw = await env.KV.get(key);
+    if (raw) {
+      await env.KV.delete(key); // single-use
+      let uid = null;
+      try { uid = JSON.parse(raw).uid; } catch {}
+      const u = uid ? await one(env, "SELECT id FROM users WHERE id = ?", uid) : null;
+      if (u) {
+        await run(env, "UPDATE users SET interview_chat_id = ?, telegram_chat_id = COALESCE(telegram_chat_id, ?) WHERE id = ?", chatId, chatId, u.id);
+        await kvPut(env, `iv_conv:${chatId}`, freshConv());
+        await showMenu(token, chatId, channel, "✅ <b>Connected — your AI Interview Coach</b>");
+      } else {
+        await send(token, chatId, `⚠️ <b>Couldn't connect</b>\n${RULE}\nOpen your dashboard and tap <b>Connect Telegram</b> again.`);
+      }
+    } else {
+      await send(token, chatId, `⌛ <b>This connect link expired</b>\n${RULE}\nLinks last 3 minutes — open your dashboard and tap <b>Connect Telegram</b> for a fresh one.`);
+    }
+    return json({ ok: true });
+  }
+
+  // Legacy typed code no longer links an account (hijack-safe) — point to the
+  // secure, logged-in dashboard button instead.
   const codeMatch = text.match(CODE_RE);
   if (codeMatch) {
-    const u = await one(env, "SELECT id FROM users WHERE connection_code = ?", codeMatch[0].toUpperCase());
-    if (u) {
-      await run(env, "UPDATE users SET interview_chat_id = ?, telegram_chat_id = COALESCE(telegram_chat_id, ?) WHERE id = ?", chatId, chatId, u.id);
-      await kvPut(env, `iv_conv:${chatId}`, freshConv());
-      await showMenu(token, chatId, channel, "✅ <b>Connected — your AI Interview Coach</b>");
-    } else {
-      await send(token, chatId, `❌ <b>Code not recognised</b>\n${RULE}\nCopy your code (like <code>JF-XXXXXX</code>) from the dashboard and send it here.`);
-    }
+    await send(token, chatId,
+      `🔒 <b>Connect from your dashboard</b>\n${RULE}\n` +
+      `For your security, connect from your account: open the dashboard and tap <b>Connect Telegram</b> — it links this coach automatically.`);
     return json({ ok: true });
   }
 
   const user = await one(env, "SELECT id, plan FROM users WHERE interview_chat_id = ?", chatId);
   if (!user) {
-    await send(token, chatId, `👋 <b>AI Interview Coach</b>\n${RULE}\nConnect first: send your code (like <code>JF-XXXXXX</code>) from your dashboard.`);
+    await send(token, chatId, `👋 <b>AI Interview Coach</b>\n${RULE}\nConnect first: open your dashboard, tap <b>Connect Telegram</b>, then reopen me and press Start.`);
     return json({ ok: true });
   }
 

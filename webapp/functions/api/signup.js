@@ -24,7 +24,7 @@ export async function onRequestPost(context) {
   const email = (body.email || "").trim().toLowerCase();
   const password = body.password || "";
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 160) return badRequest("Enter a valid email");
-  if (password.length < 6) return badRequest("Password must be at least 6 characters");
+  if (password.length < 8) return badRequest("Password must be at least 8 characters");
   if (password.length > 200) return badRequest("Password is too long");
 
   const existing = await one(env, "SELECT id FROM users WHERE email = ?", email);
