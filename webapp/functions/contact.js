@@ -5,25 +5,24 @@ import { shell, BRAND, esc } from "./_shared/page.js";
 export async function onRequestGet(context) {
   const base = new URL(context.request.url).origin;
   const body = `
-<div class="card">
-  <h1>Contact us</h1>
-  <p class="lead">Questions, feedback, or need help? Reach us any way you like — we usually reply within a day.</p>
+<div class="wrap">
+  <div class="card">
+    <div class="contact-row">
+      <a class="pill" href="mailto:${BRAND.email}">✉️ ${esc(BRAND.email)}</a>
+      <a class="pill" href="https://wa.me/${BRAND.whatsapp}" rel="noopener">💬 WhatsApp ${esc(BRAND.whatsappDisplay)}</a>
+      <a class="pill" href="https://t.me/${BRAND.channel}" rel="noopener">📢 @${esc(BRAND.channel)}</a>
+    </div>
 
-  <div class="contact-row">
-    <a class="pill" href="mailto:${BRAND.email}">✉️ ${esc(BRAND.email)}</a>
-    <a class="pill" href="https://wa.me/${BRAND.whatsapp}" rel="noopener">💬 WhatsApp ${esc(BRAND.whatsappDisplay)}</a>
-    <a class="pill" href="https://t.me/${BRAND.channel}" rel="noopener">📢 @${esc(BRAND.channel)}</a>
+    <h2>Send us a message</h2>
+    <form id="cf">
+      <div class="field"><label>Your name</label><input name="name" required maxlength="80" placeholder="Jane Doe" /></div>
+      <div class="field"><label>Your email</label><input name="email" type="email" required maxlength="120" placeholder="you@email.com" /></div>
+      <div class="field"><label>Message</label><textarea name="message" required maxlength="2000" placeholder="How can we help?"></textarea></div>
+      <button class="btn primary big" type="submit" id="sb">Send message</button>
+      <div class="ok" id="okmsg" style="display:none">✅ Thanks! Your message has been sent — we'll get back to you soon.</div>
+      <div style="color:#dc2626;font-size:14px;margin-top:10px;display:none" id="errmsg"></div>
+    </form>
   </div>
-
-  <h2>Send us a message</h2>
-  <form id="cf">
-    <div class="field"><label>Your name</label><input name="name" required maxlength="80" placeholder="Jane Doe" /></div>
-    <div class="field"><label>Your email</label><input name="email" type="email" required maxlength="120" placeholder="you@email.com" /></div>
-    <div class="field"><label>Message</label><textarea name="message" required maxlength="2000" placeholder="How can we help?"></textarea></div>
-    <button class="btn primary" type="submit" id="sb">Send message</button>
-    <div class="ok" id="okmsg" style="display:none">✅ Thanks! Your message has been sent — we'll get back to you soon.</div>
-    <div style="color:#dc2626;font-size:14px;margin-top:8px;display:none" id="errmsg"></div>
-  </form>
 </div>
 <script>
   var f=document.getElementById('cf');
@@ -41,6 +40,10 @@ export async function onRequestGet(context) {
     }catch(ex){er.textContent=ex.message||'Could not send — try email instead.';er.style.display='block';btn.disabled=false;btn.textContent='Send message';}
   });
 </script>`;
-  return new Response(shell({ base, title: `Contact — ${BRAND.name}`, description: `Get in touch with ${BRAND.name} — email, WhatsApp, or send us a message.`, body, canonicalPath: "/contact" }),
-    { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(shell({
+    base, title: `Contact — ${BRAND.name}`,
+    description: `Get in touch with ${BRAND.name} — email, WhatsApp, or send us a message.`,
+    body, canonicalPath: "/contact", active: "contact",
+    hero: { eyebrow: "Contact", title: "Get in touch", lead: "Questions, feedback, or need help? Reach us any way you like — we usually reply within a day." },
+  }), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }

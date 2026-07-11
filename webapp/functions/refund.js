@@ -4,14 +4,14 @@ import { shell, BRAND, esc } from "./_shared/page.js";
 export async function onRequestGet(context) {
   const base = new URL(context.request.url).origin;
   const body = `
-<div class="card">
-  <h1>Refund & Cancellation Policy</h1>
-  <p class="lead">Last updated: July 2026</p>
+<div class="wrap">
+  <div class="card">
+  <p class="muted" style="margin-top:0">Last updated: July 2026</p>
 
   <h2>Cancel anytime</h2>
   <p>You can cancel your subscription at any time from <b>Manage billing</b> in your dashboard. When you cancel, you keep access to your paid plan until the end of the current billing period, then your account moves to the Free plan. We don't charge you again after you cancel.</p>
 
-  <h2>Upgrades & downgrades</h2>
+  <h2>Upgrades &amp; downgrades</h2>
   <ul>
     <li><b>Upgrade:</b> takes effect immediately. You're charged a prorated amount for the rest of the current period.</li>
     <li><b>Downgrade:</b> takes effect at the end of your current billing period — you keep your current benefits until then, and are billed the lower price from the next renewal. No partial refund is issued for a downgrade.</li>
@@ -22,7 +22,10 @@ export async function onRequestGet(context) {
 
   <h2>How to cancel or request a refund</h2>
   <p>Use <b>Manage billing</b> in your dashboard, or contact us at <a href="mailto:${BRAND.email}">${esc(BRAND.email)}</a> / WhatsApp ${esc(BRAND.whatsappDisplay)} and we'll help.</p>
+  </div>
 </div>`;
-  return new Response(shell({ base, title: `Refund & Cancellation — ${BRAND.name}`, description: `Cancellation and refund policy for ${BRAND.name} subscriptions.`, body, canonicalPath: "/refund" }),
-    { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(shell({
+    base, title: `Refund & Cancellation — ${BRAND.name}`, description: `Cancellation and refund policy for ${BRAND.name} subscriptions.`,
+    body, canonicalPath: "/refund", hero: { eyebrow: "Legal", title: "Refund & Cancellation" },
+  }), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }

@@ -3,11 +3,10 @@ import { shell, BRAND, esc } from "./_shared/page.js";
 
 export async function onRequestGet(context) {
   const base = new URL(context.request.url).origin;
-  const updated = "July 2026";
   const body = `
-<div class="card">
-  <h1>Privacy Policy</h1>
-  <p class="lead">Last updated: ${updated}</p>
+<div class="wrap">
+  <div class="card">
+  <p class="muted" style="margin-top:0">Last updated: July 2026</p>
   <p>${BRAND.name} ("we", "us") helps you find jobs and prepares tailored CVs, cover letters and interview practice. This policy explains what we collect, why, and your choices.</p>
 
   <h2>Information we collect</h2>
@@ -35,12 +34,15 @@ export async function onRequestGet(context) {
   <h2>Security</h2>
   <p>Passwords are hashed; sensitive credentials such as your auto-apply app password are encrypted at rest. Access is limited and traffic is served over HTTPS.</p>
 
-  <h2>Retention & your rights</h2>
+  <h2>Retention &amp; your rights</h2>
   <p>We keep your data while your account is active. You can request access, correction or deletion of your data, or delete your account, by contacting us. Deleting your account removes your profile and stored credentials.</p>
 
   <h2>Contact</h2>
   <p>Questions about privacy? Email <a href="mailto:${BRAND.email}">${esc(BRAND.email)}</a> or WhatsApp ${esc(BRAND.whatsappDisplay)}.</p>
+  </div>
 </div>`;
-  return new Response(shell({ base, title: `Privacy Policy — ${BRAND.name}`, description: `How ${BRAND.name} collects, uses and protects your data.`, body, canonicalPath: "/privacy" }),
-    { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(shell({
+    base, title: `Privacy Policy — ${BRAND.name}`, description: `How ${BRAND.name} collects, uses and protects your data.`,
+    body, canonicalPath: "/privacy", hero: { eyebrow: "Legal", title: "Privacy Policy" },
+  }), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }

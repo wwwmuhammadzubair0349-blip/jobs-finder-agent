@@ -168,15 +168,34 @@ export default function Landing({ onAuth }) {
       </section>
 
       <footer className="lp-foot">
-        <div className="lp-foot-in">
-          <a className="lp-brand" href="/" style={{ fontSize: 15 }}><span className="brand-mark sm">JF</span>Jobs Finder<span className="grad-dot">.</span></a>
+        <div className="lp-foot-top">
+          <div className="lp-foot-brand">
+            <a className="lp-brand" href="/"><span className="brand-mark sm">JF</span>Jobs Finder<span className="grad-dot">.</span></a>
+            <p className="lp-foot-tag">Your job hunt on autopilot — matched jobs with a tailored CV & cover letter for each, straight to your Telegram.</p>
+            <div className="lp-foot-cta">
+              <button className="btn primary sm" onClick={() => onAuth("signup")}>Get started free</button>
+            </div>
+          </div>
+          <div className="lp-foot-col">
+            <h4>Product</h4>
+            <a href="/jobs">Browse jobs</a>
+            <a href="#how">How it works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#faq">FAQ</a>
+          </div>
+          <div className="lp-foot-col">
+            <h4>Company</h4>
+            <a href="/contact">Contact</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/terms">Terms</a>
+            <a href="/refund">Refunds</a>
+            <a href="https://t.me/dailyjobs_feed" target="_blank" rel="noreferrer">Telegram</a>
+          </div>
+        </div>
+        <div className="lp-foot-bar">
+          <span>© {new Date().getFullYear()} Jobs Finder. All rights reserved.</span>
           <span className="lp-nav-sp" />
-          <a href="/jobs">Jobs</a>
-          <a href="/contact">Contact</a>
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-          <a href="/refund">Refunds</a>
-          <a href="https://t.me/dailyjobs_feed" target="_blank" rel="noreferrer">Telegram</a>
+          <span>Made for job seekers, worldwide 🌍</span>
         </div>
       </footer>
     </div>

@@ -4,9 +4,9 @@ import { shell, BRAND, esc } from "./_shared/page.js";
 export async function onRequestGet(context) {
   const base = new URL(context.request.url).origin;
   const body = `
-<div class="card">
-  <h1>Terms of Service</h1>
-  <p class="lead">Last updated: July 2026</p>
+<div class="wrap">
+  <div class="card">
+  <p class="muted" style="margin-top:0">Last updated: July 2026</p>
   <p>By creating an account or using ${BRAND.name} (the "Service"), you agree to these terms. If you don't agree, please don't use the Service.</p>
 
   <h2>What the Service does</h2>
@@ -22,10 +22,10 @@ export async function onRequestGet(context) {
   <h2>Auto-apply</h2>
   <p>If you enable auto-apply, you authorise us to send applications from the email account you connect, on your behalf, subject to the limits of your plan. You can disable it at any time. You remain responsible for the content of applications sent.</p>
 
-  <h2>Plans & billing</h2>
-  <p>Paid plans are billed monthly through our payment provider, Lemon Squeezy, who acts as merchant of record. Upgrades take effect immediately (prorated); downgrades take effect at the end of your current billing period. You can cancel anytime — see our <a href="${base}/refund">Refund & Cancellation Policy</a>.</p>
+  <h2>Plans &amp; billing</h2>
+  <p>Paid plans are billed monthly through our payment provider, Lemon Squeezy, who acts as merchant of record. Upgrades take effect immediately (prorated); downgrades take effect at the end of your current billing period. You can cancel anytime — see our <a href="${base}/refund">Refund &amp; Cancellation Policy</a>.</p>
 
-  <h2>Availability & changes</h2>
+  <h2>Availability &amp; changes</h2>
   <p>We aim for high availability but provide the Service "as is" without warranties. We may change, suspend or discontinue features, and may update these terms; continued use means you accept the updates.</p>
 
   <h2>Limitation of liability</h2>
@@ -33,7 +33,10 @@ export async function onRequestGet(context) {
 
   <h2>Contact</h2>
   <p>Email <a href="mailto:${BRAND.email}">${esc(BRAND.email)}</a> or WhatsApp ${esc(BRAND.whatsappDisplay)}.</p>
+  </div>
 </div>`;
-  return new Response(shell({ base, title: `Terms of Service — ${BRAND.name}`, description: `The terms for using ${BRAND.name}.`, body, canonicalPath: "/terms" }),
-    { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(shell({
+    base, title: `Terms of Service — ${BRAND.name}`, description: `The terms for using ${BRAND.name}.`,
+    body, canonicalPath: "/terms", hero: { eyebrow: "Legal", title: "Terms of Service" },
+  }), { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }

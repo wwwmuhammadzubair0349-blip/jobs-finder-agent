@@ -1,6 +1,11 @@
-// GET /jobs — PUBLIC browse page: latest discovered jobs, each linking to its
-// SEO landing page. Optional ?q= keyword filter. Big signup CTA.
+// GET /jobs — PUBLIC browse page: premium job cards. "Apply now" routes to
+// signup (public users must create an account to apply). Optional ?q= filter.
 import { shell, BRAND, esc } from "../_shared/page.js";
+
+function initials(name) {
+  const w = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return ((w[0]?.[0] || "") + (w[1]?.[0] || "")).toUpperCase() || "•";
+}
 
 export async function onRequestGet(context) {
   const { env, request } = context;
@@ -10,46 +15,59 @@ export async function onRequestGet(context) {
 
   let rows = [];
   try {
+    const sql = "SELECT slug, title, company, location, remote, salary, source, description FROM job_pool";
     if (q) {
       const like = `%${q}%`;
-      rows = (await env.DB.prepare(
-        "SELECT slug, title, company, location, remote, salary FROM job_pool WHERE title LIKE ? OR company LIKE ? ORDER BY discovered_at DESC LIMIT 60"
-      ).bind(like, like).all()).results || [];
+      rows = (await env.DB.prepare(sql + " WHERE title LIKE ? OR company LIKE ? ORDER BY discovered_at DESC LIMIT 60").bind(like, like).all()).results || [];
     } else {
-      rows = (await env.DB.prepare(
-        "SELECT slug, title, company, location, remote, salary FROM job_pool ORDER BY discovered_at DESC LIMIT 60"
-      ).all()).results || [];
+      rows = (await env.DB.prepare(sql + " ORDER BY discovered_at DESC LIMIT 60").all()).results || [];
     }
   } catch {}
 
-  const list = rows.map((j) => `
-    <a class="jobrow" href="${base}/jobs/${esc(j.slug)}">
-      <div class="t">${esc(j.title)}</div>
-      <div class="s">${esc(j.company || "")}${j.location ? " · " + esc(j.location) : ""}</div>
-      <div class="chips">
-        ${j.remote ? '<span class="chip">🌍 Remote</span>' : ""}
-        ${j.salary ? `<span class="chip">💰 ${esc(j.salary)}</span>` : ""}
+  const cards = rows.map((j) => {
+    const snip = (j.description || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    return `<div class="jcard">
+      <div class="jc-top">
+        <div class="jc-logo">${esc(initials(j.company))}</div>
+        <div style="flex:1;min-width:0">
+          <a class="jc-title" href="${base}/jobs/${esc(j.slug)}">${esc(j.title)}</a>
+          <div class="jc-sub">${esc(j.company || "")}${j.location ? " · " + esc(j.location) : ""}</div>
+        </div>
       </div>
-    </a>`).join("") || `<p class="muted">No jobs found${q ? ` for "${esc(q)}"` : ""}. Check back soon — fresh jobs are added around the clock.</p>`;
+      <div class="jc-tags">
+        ${j.remote ? '<span class="jc-tag remote">🌍 Remote</span>' : ""}
+        ${j.salary ? `<span class="jc-tag">💰 ${esc(j.salary)}</span>` : ""}
+        ${j.source ? `<span class="jc-tag">${esc(j.source)}</span>` : ""}
+      </div>
+      ${snip ? `<p class="jc-desc">${esc(snip)}…</p>` : '<p class="jc-desc"></p>'}
+      <div class="jc-actions">
+        <a class="btn primary" href="${base}/?auth=signup">Apply now →</a>
+        <a class="btn ghost" href="${base}/jobs/${esc(j.slug)}">Details</a>
+      </div>
+    </div>`;
+  }).join("") || `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted)">No jobs found${q ? ` for "${esc(q)}"` : ""}. Fresh jobs are added around the clock — check back soon.</div>`;
 
   const body = `
-<div class="card">
-  <h1>Browse jobs</h1>
-  <p class="lead">Fresh roles discovered across the web. Sign up free to get matches tailored to you — each with an auto-written CV & cover letter.</p>
-  <form method="get" action="${base}/jobs" style="margin:14px 0">
-    <div class="field" style="margin:0"><input name="q" value="${esc(q)}" placeholder="Search job title or company…" /></div>
+<div class="wrap" style="max-width:1180px">
+  <form class="searchbar" method="get" action="${base}/jobs">
+    <input name="q" value="${esc(q)}" placeholder="Search job title or company…" />
   </form>
-  ${list}
+  <div class="jobs-grid">${cards}</div>
 </div>
-<div class="card" style="margin-top:18px;text-align:center;background:linear-gradient(135deg,#0b0a1e,#1b1740);color:#fff;border:0">
-  <h2 style="margin-top:0;color:#fff">Get jobs matched to <i>you</i> — free</h2>
-  <p style="color:rgba(255,255,255,.7)">We match roles to your profile and write a tailored CV + cover letter for each, delivered to your Telegram.</p>
-  <a class="btn" style="background:#fff;color:#1b1740" href="${base}/?auth=signup">Create my free account →</a>
-</div>`;
+<section class="wrap" style="max-width:1180px;padding-top:0">
+  <div class="ctaband">
+    <h2>Get jobs matched to <i>you</i> — free</h2>
+    <p>We match roles to your profile and write a tailored CV + cover letter for each, delivered to your Telegram.</p>
+    <a class="btn big" href="${base}/?auth=signup">Create my free account →</a>
+  </div>
+</section>`;
 
   return new Response(shell({
-    base, title: q ? `${esc(q)} jobs — ${BRAND.name}` : `Browse jobs — ${BRAND.name}`,
+    base, wide: true, active: "jobs",
+    title: q ? `${esc(q)} jobs — ${BRAND.name}` : `Browse jobs — ${BRAND.name}`,
     description: `Browse the latest jobs on ${BRAND.name}. Sign up free for matched jobs with an auto-written CV and cover letter.`,
-    body, canonicalPath: "/jobs",
+    canonicalPath: "/jobs",
+    hero: { eyebrow: "Jobs", title: "Browse fresh jobs", lead: "Roles discovered across the web, updated around the clock. Sign up free to get matches tailored to you — each with an auto-written CV." },
+    body,
   }), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=600" } });
 }
