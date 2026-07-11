@@ -76,13 +76,20 @@ export async function remaining(env, userId, plan, metric, tz = "UTC") {
 }
 
 // Consume one credit. Returns true if allowed (and counted), false if over limit.
+// Atomic: the conditional UPDATE (count < limit) is a single SQLite statement,
+// so concurrent requests can never push the counter past the limit (no TOCTOU
+// race — important for paid-plan integrity and LLM/cost abuse).
 export async function consume(env, userId, plan, metric, tz = "UTC") {
   const { limit, period } = metricLimit(plan, metric);
+  if (limit <= 0) return false;
   const pkey = periodKey(period, tz);
-  const used = await usageCount(env, userId, metric, pkey);
-  if (used >= limit) return false;
-  await bump(env, userId, metric, pkey);
-  return true;
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO usage_counters (user_id, metric, period_key, count) VALUES (?,?,?,0)"
+  ).bind(userId, metric, pkey).run();
+  const r = await env.DB.prepare(
+    "UPDATE usage_counters SET count = count + 1 WHERE user_id=? AND metric=? AND period_key=? AND count < ?"
+  ).bind(userId, metric, pkey, limit).run();
+  return (r.meta?.changes || 0) > 0;
 }
 
 // Per-metric usage snapshot for the dashboard meters.

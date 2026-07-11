@@ -8,7 +8,7 @@
 // actually starts (the 🚀 Start tap). Plan limits are shown up front and the
 // wall links to upgrade. See _shared/plans.js.
 import { one, all, run } from "../_shared/db.js";
-import { json, kvJSON, kvPut } from "../_shared/kv.js";
+import { json, kvJSON, kvPut, rateLimit } from "../_shared/kv.js";
 import { consume, remaining, metricLimit, userTimezone, PLAN_META } from "../_shared/plans.js";
 
 const CODE_RE = /\bJF-[A-Z0-9]{6}\b/i;
@@ -189,6 +189,12 @@ async function startInterview(ctx) {
 
 async function interviewTurn(ctx, text) {
   const { env, token, chatId, user, conv } = ctx;
+  // Cost guard: cap LLM turns per chat (30 / 5 min). Filler messages don't count
+  // toward the question cap, so without this a session could call the LLM forever.
+  if (!(await rateLimit(env, `ivbot:${chatId}`, 30, 300))) {
+    await send(token, chatId, `⏳ <b>Slow down a moment</b>\n${RULE}\nGive me a few seconds between answers — I'm still here. Try again shortly.`, endKb());
+    return;
+  }
   conv.messages.push({ role: "user", content: text });
   // Don't let filler ("ok", "sorry", "idk", "?") burn a real question slot.
   const t = text.trim();
