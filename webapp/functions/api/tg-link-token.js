@@ -13,5 +13,7 @@ export async function onRequestPost(context) {
   const token = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join(""); // 32 hex chars
   await env.KV.put(`tglink:${token}`, JSON.stringify({ uid: String(data.userId) }), { expirationTtl: TTL });
   const bot = env.BOT_USERNAME || "jobs_finder_agent_bot";
-  return json({ ok: true, url: `https://t.me/${bot}?start=${token}`, expires_in: TTL });
+  const app = `tg://resolve?domain=${bot}&start=${token}`;                       // opens the installed app directly
+  const web = `https://web.telegram.org/k/#?tgaddr=${encodeURIComponent(app)}`;  // opens Telegram Web, carries the token
+  return json({ ok: true, url: `https://t.me/${bot}?start=${token}`, app, web, bot, expires_in: TTL });
 }

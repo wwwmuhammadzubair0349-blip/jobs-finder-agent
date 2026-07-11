@@ -67,13 +67,14 @@ export async function onRequestPost(context) {
     return json({ ok: true });
   }
 
-  // Legacy typed code no longer links an account (hijack-safe) — point to the
-  // secure, logged-in dashboard button instead.
+  // Codes no longer link (hijack-safe). If already connected, say so; else
+  // point to the secure dashboard button.
   const codeMatch = text.match(CODE_RE);
   if (codeMatch) {
-    await send(token, chatId,
-      `🔒 <b>Connect from your dashboard</b>\n${RULE}\n` +
-      `For your security, connect from your account: open the dashboard and tap <b>Connect Telegram</b> — it links this coach automatically.`);
+    const already = await one(env, "SELECT id FROM users WHERE interview_chat_id = ?", chatId);
+    await send(token, chatId, already
+      ? `✅ <b>You're already connected</b>\n${RULE}\nThis coach is linked to your account. To link a <i>different</i> account, unlink first in your dashboard (<b>Connect Telegram → Unlink</b>).`
+      : `🔒 <b>Connect from your dashboard</b>\n${RULE}\nFor your security, connect from your account: open the dashboard and tap <b>Connect Telegram</b> — it links this coach automatically.`);
     return json({ ok: true });
   }
 

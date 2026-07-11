@@ -122,12 +122,19 @@ export async function onRequestPost(context) {
 
     const m = text.match(CODE_RE);
     if (m) {
-      // Legacy code path no longer links an account (that was hijackable if the
-      // code leaked). Direct the user to the secure, logged-in dashboard button.
-      await send(token, chatId,
-        `🔒 <b>Connect from your dashboard</b>\n${RULE}\n` +
-        `For your security, connecting now happens from your account. Open your dashboard and tap <b>Connect Telegram</b> — I'll link this chat automatically.`,
-        [[btnUrl("🔗 Open dashboard", dash)]]);
+      // Codes no longer link (that was hijackable if a code leaked). If this
+      // chat is already connected, say so; otherwise point to the dashboard.
+      const already = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
+      if (already) {
+        await send(token, chatId,
+          `✅ <b>You're already connected</b>\n${RULE}\n` +
+          `This Telegram is linked to your account — jobs & documents arrive here automatically. To link a <i>different</i> account, unlink first in your dashboard (<b>Connect Telegram → Unlink</b>).`);
+      } else {
+        await send(token, chatId,
+          `🔒 <b>Connect from your dashboard</b>\n${RULE}\n` +
+          `For your security, connecting now happens from your account. Open your dashboard and tap <b>Connect Telegram</b> — I'll link this chat automatically.`,
+          [[btnUrl("🔗 Open dashboard", dash)]]);
+      }
     } else {
       const already = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
       if (already) {

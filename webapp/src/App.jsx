@@ -604,6 +604,7 @@ function ConnectCard({ me, reloadMe }) {
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [err, setErr] = useState("");
+  const [link, setLink] = useState(null);
   const pollRef = useRef(null);
   const connected = me.user?.telegram_connected;
 
@@ -619,7 +620,11 @@ function ConnectCard({ me, reloadMe }) {
     setErr(""); setBusy(true);
     try {
       const r = await api.tgLinkToken();
-      window.open(r.url, "_blank", "noopener");
+      setLink(r);
+      // Mobile → universal link opens the app directly; desktop → Telegram Web
+      // with the token embedded. No dead interstitial; the token always flows.
+      const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || "");
+      window.open(isMobile ? r.url : r.web, "_blank", "noopener");
       setWaiting(true);
       const started = Date.now();
       clearInterval(pollRef.current);
@@ -654,15 +659,20 @@ function ConnectCard({ me, reloadMe }) {
       </div>
       <div className="hint" style={{ margin: "6px 0 10px" }}>
         {waiting
-          ? "Waiting for you to press Start in Telegram — this updates automatically once you're linked."
-          : "One tap: Telegram opens and links securely to your account. No codes to copy."}
+          ? "Telegram is opening — press Start there. This card updates automatically once you're linked. Didn't open? Use a button below:"
+          : "One tap and Telegram opens linked to your account — no codes to copy."}
       </div>
-      <div className="row-actions">
-        <button className="btn primary sm" onClick={connect} disabled={busy || waiting}>
-          {busy ? "Opening…" : waiting ? "⏳ Waiting for Telegram…" : "✈ Connect Telegram"}
-        </button>
-        {waiting && <button className="btn ghost sm" onClick={connect} disabled={busy}>Resend link</button>}
-      </div>
+      {!waiting ? (
+        <div className="row-actions">
+          <button className="btn primary sm" onClick={connect} disabled={busy}>{busy ? "Opening…" : "✈ Connect Telegram"}</button>
+        </div>
+      ) : (
+        <div className="row-actions">
+          <a className="btn primary sm" href={link?.app}>📱 Open Telegram app</a>
+          <a className="btn sm" href={link?.web} target="_blank" rel="noreferrer">🌐 Open Telegram Web</a>
+          <button className="btn ghost sm" onClick={connect} disabled={busy}>↻ New link</button>
+        </div>
+      )}
       {err && <div className="err-msg" style={{ marginTop: 8 }}>{err}</div>}
       <div className="hint" style={{ marginTop: 10, fontSize: 12 }}>🔒 The link is single-use and expires in 3 minutes.</div>
     </div>
