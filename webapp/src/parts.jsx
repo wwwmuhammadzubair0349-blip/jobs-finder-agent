@@ -64,7 +64,7 @@ function SaveStar({ job, onSave }) {
   );
 }
 
-export function JobCard({ job, appStatus, onStatus, onSend, onShare, onSave, onOpen }) {
+export function JobCard({ job, appStatus, onStatus, onSend, onShare, onSave, onOpen, onInterview }) {
   const url = job.url;
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
@@ -112,6 +112,7 @@ export function JobCard({ job, appStatus, onStatus, onSend, onShare, onSave, onO
         {job.cv_url && <a className="btn sm" href={job.cv_url} target="_blank" rel="noreferrer">📄 CV</a>}
         {job.cover_url && <a className="btn sm" href={job.cover_url} target="_blank" rel="noreferrer">✉️ Cover</a>}
         {onSend && !job.cv_url && <button className="btn sm" onClick={send} disabled={sending || sent}>{sent ? "✓ Preparing…" : sending ? "…" : "📄 Prepare CV & Cover"}</button>}
+        {onInterview && <button className="btn sm" onClick={(e) => { e.stopPropagation(); onInterview(job); }}>🎤 Interview</button>}
         {onOpen && <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); onOpen(job); }}>Details →</button>}
       </div>
     </div>
@@ -119,7 +120,7 @@ export function JobCard({ job, appStatus, onStatus, onSend, onShare, onSave, onO
 }
 
 // Rich job details modal — opens from any card.
-export function JobDetail({ job, appStatus, onStatus, onSend, onShare, onSave, onClose }) {
+export function JobDetail({ job, appStatus, onStatus, onSend, onShare, onSave, onInterview, onClose }) {
   const [saved, setSaved] = React.useState(!!job.saved);
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
@@ -165,6 +166,7 @@ export function JobDetail({ job, appStatus, onStatus, onSend, onShare, onSave, o
             ? <a className="btn" href={job.cv_url} target="_blank" rel="noreferrer">📄 Download CV</a>
             : onSend && <button className="btn" onClick={send} disabled={sending || sent}>{sent ? "✓ Preparing…" : sending ? "…" : "📄 Prepare CV & Cover"}</button>}
           {job.cover_url && <a className="btn" href={job.cover_url} target="_blank" rel="noreferrer">✉️ Download Cover</a>}
+          {onInterview && <button className="btn" onClick={() => { onClose?.(); onInterview(job); }}>🎤 Prepare interview</button>}
           {onShare && job.slug && <button className="btn ghost" onClick={() => onShare(job)}>🔗 Share</button>}
         </div>
 

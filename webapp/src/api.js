@@ -24,6 +24,7 @@ export const api = {
   runNow: () => req("/run", { method: "POST" }),
   sendJob: (job) => req("/send-job", { method: "POST", body: JSON.stringify({ job_id: job.id }) }),
   saveJob: (jobId, saved) => req("/save-job", { method: "POST", body: JSON.stringify({ job_id: jobId, saved }) }),
+  interviewChat: (payload) => req("/interview-chat", { method: "POST", body: JSON.stringify(payload) }),
   regenCode: () => req("/code", { method: "POST" }),
   // billing
   checkout: (plan) => req("/checkout", { method: "POST", body: JSON.stringify({ plan }) }),

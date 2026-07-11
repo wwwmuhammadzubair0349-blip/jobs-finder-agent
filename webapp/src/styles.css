@@ -846,6 +846,35 @@ select.status {
 .mbar { height: 7px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--hair); overflow: hidden; }
 .mbar-fill { height: 100%; border-radius: 999px; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
 
+/* ---- In-app interview chat --------------------------------------------------- */
+.modal.iv-chat { max-width: 640px; height: 82vh; max-height: 680px; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.iv-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--hair); }
+.iv-ico { width: 40px; height: 40px; border-radius: 12px; background: var(--grad); color: #fff; display: grid; place-items: center; font-size: 19px; flex: none; }
+.iv-title { font-family: var(--display); font-weight: 700; font-size: 16px; }
+.iv-sub { color: var(--muted); font-size: 13px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.iv-confirm { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px 26px; }
+.iv-confirm-emoji { font-size: 44px; margin-bottom: 10px; }
+.iv-confirm-title { font-family: var(--display); font-weight: 750; font-size: 20px; letter-spacing: -0.3px; }
+.iv-confirm-sub { color: var(--ink-2); font-size: 14.5px; line-height: 1.6; max-width: 42ch; margin: 8px 0 20px; }
+.iv-confirm-actions { display: flex; gap: 10px; }
+
+.iv-thread { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 14px; background: var(--bg); }
+.iv-msg { display: flex; gap: 9px; align-items: flex-end; max-width: 100%; }
+.iv-msg.user { justify-content: flex-end; }
+.iv-avatar { width: 28px; height: 28px; border-radius: 9px; background: var(--accent-weak); display: grid; place-items: center; font-size: 14px; flex: none; }
+.iv-bubble { max-width: 78%; padding: 11px 14px; border-radius: 15px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; box-shadow: var(--shadow); }
+.iv-msg.assistant .iv-bubble { background: var(--surface); border: 1px solid var(--hair); border-bottom-left-radius: 5px; }
+.iv-msg.user .iv-bubble { background: var(--grad); color: #fff; border-bottom-right-radius: 5px; }
+.iv-typing { display: inline-flex; gap: 4px; align-items: center; }
+.iv-typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); opacity: 0.5; }
+@media (prefers-reduced-motion: no-preference) { .iv-typing span { animation: ivdot 1s infinite; } .iv-typing span:nth-child(2) { animation-delay: 0.15s; } .iv-typing span:nth-child(3) { animation-delay: 0.3s; } @keyframes ivdot { 0%,100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } } }
+
+.iv-input { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--hair); background: var(--surface); }
+.iv-input textarea { flex: 1; resize: none; border: 1px solid var(--hair-strong); background: var(--surface-2); border-radius: 12px; padding: 11px 13px; font: inherit; font-size: 14.5px; max-height: 120px; }
+.iv-input textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+.iv-ended { padding: 14px 18px; border-top: 1px solid var(--hair); text-align: center; font-weight: 600; color: var(--ok); display: flex; align-items: center; justify-content: center; gap: 12px; }
+
 /* ---- 2K / 4K scaling: crisp at any resolution ---------------------------------------------------- */
 @media (min-width: 2200px) { body { zoom: 1.25; } }
 @media (min-width: 3200px) { body { zoom: 1.6; } }

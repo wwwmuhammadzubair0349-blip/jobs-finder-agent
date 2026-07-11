@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
 import Login from "./Login";
 import Landing from "./Landing";
+import InterviewChat from "./InterviewChat";
 import Tour from "./Tour";
 import { Kpi, JobCard, JobDetail, Empty } from "./parts";
 import { ProfileEditor, SearchEditor, ScheduleEditor, AutoApplyEditor } from "./Editors";
@@ -54,6 +55,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [running, setRunning] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const [detail, setDetail] = useState(null);   // job open in the details modal
+  const [interviewJob, setInterviewJob] = useState(null); // job open in the interview chat
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("jf_tour_done"));
   // Profile popup shows once per session — the in-page CTAs carry it after that.
   const [nagDismissed, setNagDismissed] = useState(() => !!sessionStorage.getItem("jf_nag_done"));
@@ -125,6 +127,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
     catch { flash("Couldn't update saved"); }
   }
   const openDetail = (job) => setDetail(job);
+  const openInterview = (job) => setInterviewJob(job);
 
   async function shareJob(job) {
     if (!job.slug) return;
@@ -213,9 +216,9 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       <ActivityBar latest={data?.latest_run} />
 
       <div className="content">
-        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} onSeeAll={() => setTab("jobs")} />}
+        {tab === "today" && <Today me={me} data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} reloadMe={reloadMe} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} onSeeAll={() => setTab("jobs")} onInterview={openInterview} />}
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
-        {tab === "jobs" && <MyJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
+        {tab === "jobs" && <MyJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} onInterview={openInterview} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
         {tab === "profile" && (config ? <ProfileTab config={config} onSave={saveConfig} plan={data?.plan?.id || me.user?.plan || "free"} /> : <Loading />)}
       </div>
@@ -237,8 +240,10 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       {detail && (() => {
         const live = (data?.jobs || []).find((j) => j.id === detail.id) || detail;
         const appMap = Object.fromEntries((data?.applications || []).map((a) => [a.job_url, a.status]));
-        return <JobDetail job={live} appStatus={appMap[live.url]} onStatus={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onClose={() => setDetail(null)} />;
+        return <JobDetail job={live} appStatus={appMap[live.url]} onStatus={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onInterview={openInterview} onClose={() => setDetail(null)} />;
       })()}
+
+      {interviewJob && <InterviewChat job={interviewJob} onClose={() => setInterviewJob(null)} onUpgrade={() => setShowPricing(true)} />}
 
       {showPricing && (
         <PricingModal
@@ -427,7 +432,7 @@ function SetupChecklist({ complete, telegram, goProfile }) {
   );
 }
 
-function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, complete, goProfile, onRun, onUpgrade, onManage, onSeeAll }) {
+function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, reloadMe, complete, goProfile, onRun, onUpgrade, onManage, onSeeAll }) {
   const [filter, setFilter] = useState("today");
   if (!data) return <Loading />;
   const allJobs = data.jobs || [];
@@ -494,7 +499,7 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, reloadMe, com
                   ? <HuntingCta onRun={onRun} />
                   : <Empty icon="🗂" title={`No ${titleMap[filter].toLowerCase()} yet`} sub="Tap another stat above." />)
             : <>
-                <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} onSave={onSave} onOpen={onOpen} />)}</div>
+                <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} onSave={onSave} onOpen={onOpen} onInterview={onInterview} />)}</div>
                 {full.length > shown.length && <button className="btn ghost see-all" onClick={onSeeAll}>See all {full.length} in My jobs →</button>}
               </>}
         </div>
@@ -706,7 +711,7 @@ function MyJobs(props) {
   );
 }
 
-function MyJobsList({ data, onApp, onSend, onShare, onSave, onOpen, complete, goProfile, onRun }) {
+function MyJobsList({ data, onApp, onSend, onShare, onSave, onOpen, onInterview, complete, goProfile, onRun }) {
   const [q, setQ] = useState("");
   const [f, setF] = useState("all");
   if (!data) return <Loading />;
@@ -735,7 +740,7 @@ function MyJobsList({ data, onApp, onSend, onShare, onSave, onOpen, complete, go
       {jobs.length === 0 ? (!complete ? <ProfileCta goProfile={goProfile} /> : <HuntingCta onRun={onRun} />) :
        filtered.length === 0 ? <Empty icon="🔍" title="No matching jobs" sub="Try another filter or search." /> :
         <div className="job-list">
-          {filtered.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} onSave={onSave} onOpen={onOpen} />)}
+          {filtered.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} onSave={onSave} onOpen={onOpen} onInterview={onInterview} />)}
         </div>}
     </div>
   );
