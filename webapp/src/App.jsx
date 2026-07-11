@@ -458,22 +458,25 @@ function Today({ me, data, onApp, onSend, onShare, reloadMe, complete, goProfile
         ))}
       </div>
 
-      <SetupChecklist complete={complete} telegram={me.user?.telegram_connected} goProfile={goProfile} />
-
-      {data.plan && <UsageMeters plan={data.plan} onOpen={onUpgrade} onManage={onManage} />}
-
-      <ConnectCard me={me} reloadMe={reloadMe} />
-
       <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} />
 
-      <p className="section-title">{titleMap[filter]} · {full.length}{full.length > shown.length ? ` (showing ${shown.length})` : ""}</p>
-      {shown.length === 0
-        ? (!complete
-            ? <ProfileCta goProfile={goProfile} />
-            : (filter === "today" || filter === "total")
-              ? <HuntingCta onRun={onRun} />
-              : <Empty icon="🗂" title={`No ${titleMap[filter].toLowerCase()} yet`} sub="Tap another stat above." />)
-        : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} />)}</div>}
+      <div className="dash-grid">
+        <div className="dash-main">
+          <p className="section-title">{titleMap[filter]} · {full.length}{full.length > shown.length ? ` (showing ${shown.length})` : ""}</p>
+          {shown.length === 0
+            ? (!complete
+                ? <ProfileCta goProfile={goProfile} />
+                : (filter === "today" || filter === "total")
+                  ? <HuntingCta onRun={onRun} />
+                  : <Empty icon="🗂" title={`No ${titleMap[filter].toLowerCase()} yet`} sub="Tap another stat above." />)
+            : <div className="job-list">{shown.map((j) => <JobCard key={j.id || j.url} job={j} appStatus={appMap[j.url]} onStatus={onApp} onSend={onSend} onShare={onShare} />)}</div>}
+        </div>
+        <aside className="dash-rail">
+          <SetupChecklist complete={complete} telegram={me.user?.telegram_connected} goProfile={goProfile} />
+          {data.plan && <UsageMeters plan={data.plan} onOpen={onUpgrade} onManage={onManage} />}
+          <ConnectCard me={me} reloadMe={reloadMe} />
+        </aside>
+      </div>
     </div>
   );
 }
@@ -557,8 +560,20 @@ function AdminPanel({ reloadMe, flash }) {
     if (action === "delete" && !confirm(`Delete ${u.email}? This removes all their data.`)) return;
     await api.adminAction(u.id, action); flash(`${action} ${u.email}`); load();
   }
+  const stats = [
+    { v: users.length, l: "Total users" },
+    { v: users.filter((u) => u.status === "active").length, l: "Active" },
+    { v: users.filter((u) => u.telegram_connected).length, l: "On Telegram" },
+    { v: users.reduce((s, u) => s + (u.applied || 0), 0), l: "Applications" },
+  ];
   return (
     <div className="fade">
+      <p className="section-title">🛡 Admin overview</p>
+      <div className="kpis">
+        {stats.map((s) => (
+          <div className="kpi" key={s.l}><div className="v num">{s.v}</div><div className="l">{s.l}</div></div>
+        ))}
+      </div>
       <ContactMessages flash={flash} />
       <p className="section-title">All users · {users.length}</p>
       {users.map((u) => (
