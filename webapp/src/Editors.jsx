@@ -1,18 +1,9 @@
 import React, { useState } from "react";
 import { limitFor, UNLIMITED, PLAN_EMOJI } from "./plans";
+import { COUNTRIES, ADZUNA, nameOf } from "./countries";
 
 const listToStr = (a) => (Array.isArray(a) ? a.join(", ") : "");
 const strToList = (s) => s.split(",").map((x) => x.trim()).filter(Boolean);
-
-// Unified country list. `noadz` = not in Adzuna's DB (still searched via other
-// sources through `locations`). Single source of truth for country selection.
-const COUNTRIES = [
-  { c: "gb", n: "United Kingdom" }, { c: "us", n: "United States" }, { c: "ae", n: "UAE", noadz: true },
-  { c: "sa", n: "Saudi Arabia", noadz: true }, { c: "qa", n: "Qatar", noadz: true }, { c: "au", n: "Australia" },
-  { c: "ca", n: "Canada" }, { c: "de", n: "Germany" }, { c: "fr", n: "France" }, { c: "in", n: "India" },
-  { c: "nl", n: "Netherlands" }, { c: "sg", n: "Singapore" }, { c: "za", n: "South Africa" },
-  { c: "nz", n: "New Zealand" }, { c: "it", n: "Italy" }, { c: "pl", n: "Poland" }, { c: "br", n: "Brazil" }, { c: "mx", n: "Mexico" },
-];
 
 function SaveBar({ dirty, busy, onSave, saved }) {
   return (
@@ -260,17 +251,16 @@ export function SearchEditor({ initial, onSave, plan = "free" }) {
   };
 
   const maxCountries = limitFor(plan, "countries");
-  function toggleCountry(c) {
-    const next = new Set(sel);
-    if (next.has(c)) { next.delete(c); setNudge(""); }
-    else {
-      if (next.size >= maxCountries) {
-        setNudge(`Your plan allows ${maxCountries} ${maxCountries === 1 ? "country" : "countries"}. Upgrade to search more.`);
-        return;
-      }
-      next.add(c);
+  function addCountry(c) {
+    if (!c || sel.has(c)) return;
+    if (sel.size >= maxCountries) {
+      setNudge(`Your plan allows ${maxCountries} ${maxCountries === 1 ? "country" : "countries"}. Upgrade to search more.`);
+      return;
     }
-    setSel(next); setDirty(true); setSaved(false);
+    const next = new Set(sel); next.add(c); setSel(next); setDirty(true); setSaved(false); setNudge("");
+  }
+  function removeCountry(c) {
+    const next = new Set(sel); next.delete(c); setSel(next); setDirty(true); setSaved(false); setNudge("");
   }
 
   async function save() {
@@ -278,12 +268,14 @@ export function SearchEditor({ initial, onSave, plan = "free" }) {
     const codes = [...sel];
     const payload = {
       ...s, countries: codes,
-      adzuna_countries: codes.filter((c) => COUNTRIES.find((x) => x.c === c && !x.noadz)),
-      locations: codes.map((c) => COUNTRIES.find((x) => x.c === c)?.n).filter(Boolean),
+      adzuna_countries: codes.filter((c) => ADZUNA.has(c)),
+      locations: codes.map((c) => nameOf(c)),
     };
     try { await onSave("search", payload); setDirty(false); setSaved(true); }
     finally { setBusy(false); }
   }
+
+  const selList = [...sel];
 
   return (
     <div className="fade">
@@ -291,37 +283,26 @@ export function SearchEditor({ initial, onSave, plan = "free" }) {
         <div className="field"><label>Job titles you want (comma-separated)</label><input value={listToStr(s.job_titles)} onChange={(e) => set("job_titles", strToList(e.target.value))} placeholder="e.g. Electrical Engineer, Project Manager" /></div>
 
         <div className="field">
-          <label>Countries · {sel.size}/{maxCountries === UNLIMITED ? "∞" : maxCountries} {PLAN_EMOJI[plan] || ""}</label>
-          <div className="job-meta">
-            {COUNTRIES.map(({ c, n }) => {
-              const on = sel.has(c);
-              return <button key={c} type="button" className="tag" style={on ? { background: "var(--accent-weak)", borderColor: "var(--accent)", color: "var(--accent)" } : {}} onClick={() => toggleCountry(c)}>{on ? "✓ " : ""}{n}</button>;
-            })}
-          </div>
+          <label>Countries · {selList.length}/{maxCountries === UNLIMITED ? "∞" : maxCountries} {PLAN_EMOJI[plan] || ""}</label>
+          <select className="country-select" value="" onChange={(e) => { addCountry(e.target.value); e.target.value = ""; }}>
+            <option value="">+ Add a country…</option>
+            {COUNTRIES.filter((x) => !sel.has(x.c)).map(({ c, n }) => <option key={c} value={c}>{n}{ADZUNA.has(c) ? "" : " (via Jooble/Apify)"}</option>)}
+          </select>
+          {selList.length > 0 && (
+            <div className="chip-list">
+              {selList.map((c) => (
+                <span className="sel-chip" key={c}>{nameOf(c)}<button type="button" onClick={() => removeCountry(c)} aria-label="remove">✕</button></span>
+              ))}
+            </div>
+          )}
           {nudge && <div className="hint" style={{ color: "var(--warn)" }}>⭐ {nudge}</div>}
-          <div className="hint">One place for all country selection — used across every job source.</div>
+          <div className="hint">Pick from the dropdown — one place for all country selection, used across every source.</div>
         </div>
 
         <div className="field"><label className="checkbox"><input type="checkbox" checked={!!s.remote} onChange={(e) => set("remote", e.target.checked)} /> Include remote roles</label></div>
         <div className="grid2">
-          <div className="field"><label>Keywords to include</label><input value={listToStr(s.keywords_include)} onChange={(e) => set("keywords_include", strToList(e.target.value))} /></div>
-          <div className="field"><label>Keywords to exclude</label><input value={listToStr(s.keywords_exclude)} onChange={(e) => set("keywords_exclude", strToList(e.target.value))} /></div>
-        </div>
-
-        <div className="field">
-          <label>Job sources</label>
-          <div className="job-meta">
-            {ALL_SOURCES.map((src) => {
-              const on = (s.sources || []).includes(src);
-              return <button key={src} type="button" className="tag" style={on ? { background: "var(--accent-weak)", borderColor: "var(--accent)", color: "var(--accent)" } : {}} onClick={() => toggleSource(src)}>{on ? "✓ " : ""}{src}</button>;
-            })}
-          </div>
-          <div className="hint">remotive & remoteok are free. adzuna/jooble use a free key; apify costs credits (throttled).</div>
-        </div>
-
-        <div className="grid2">
-          <div className="field"><label>Posted within (days)</label><input type="number" value={s.posted_within_days ?? 7} onChange={(e) => set("posted_within_days", parseInt(e.target.value || "7", 10))} /></div>
-          <div className="field"><label>Match threshold (0–100)</label><input type="number" value={s.match_threshold ?? 55} onChange={(e) => set("match_threshold", parseInt(e.target.value || "55", 10))} /></div>
+          <div className="field"><label>Keywords to include</label><input value={listToStr(s.keywords_include)} onChange={(e) => set("keywords_include", strToList(e.target.value))} placeholder="e.g. hvac, plc, controls" /></div>
+          <div className="field"><label>Keywords to exclude</label><input value={listToStr(s.keywords_exclude)} onChange={(e) => set("keywords_exclude", strToList(e.target.value))} placeholder="e.g. senior, lead" /></div>
         </div>
       </div>
 

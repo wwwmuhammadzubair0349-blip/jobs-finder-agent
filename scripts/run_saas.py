@@ -17,7 +17,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from cf_store import kv_available, kv_put
+from cf_store import kv_available, kv_put, kv_get
 from d1 import d1_available
 from log_issue import log_issue
 
@@ -30,6 +30,7 @@ _current: dict = {"agent": None, "job": None, "phase": "idle"}
 _started = _dt.datetime.now(_dt.timezone.utc)
 AUTO_CV_TOP_N = 3
 MAX_NEW_PER_USER = 50
+_ENGINE: dict = {}   # global engine settings (admin-controlled, from KV)
 
 
 def _now() -> str:
@@ -130,9 +131,17 @@ def main() -> None:
 
     configs = {u["id"]: user_config(u["id"]) for u in users}
 
+    # Admin-controlled engine settings (sources / thresholds / recency).
+    global _ENGINE
+    _ENGINE = kv_get("engine_config", {}) or {}
+
     # 1) one global collection for the merged demand
     set_activity("collect_jobs", "collecting")
     search = _merged_search(list(configs.values()))
+    if _ENGINE.get("sources"):
+        search["sources"] = _ENGINE["sources"]
+    if _ENGINE.get("posted_within_days"):
+        search["posted_within_days"] = int(_ENGINE["posted_within_days"])
     settings = {"credit_markers": {"apify_min_hours_between_runs": 72}, "max_queries_per_source": 6}
     batch = collect_all(search, settings)
     _step_states["collect_jobs"] = "ok"; _agent("collect_jobs")
@@ -245,6 +254,10 @@ def _process_user(u, cfg, batch, rank, existing_ids_fn, add_fn, queued_fn, mark_
     settings = cfg.get("settings", {}) or {}
     chat_id = u.get("telegram_chat_id")
     email = u.get("email", "")
+
+    # Apply admin engine overrides (match threshold) so ranking quality is global.
+    if _ENGINE.get("match_threshold") is not None:
+        search = {**search, "match_threshold": _ENGINE["match_threshold"]}
 
     from saas_store import user_agents_update
 

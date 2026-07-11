@@ -585,6 +585,7 @@ function AdminPanel({ reloadMe, flash }) {
           <div className="kpi" key={s.l}><div className="v num">{s.v}</div><div className="l">{s.l}</div></div>
         ))}
       </div>
+      <EngineSettings flash={flash} />
       <ContactMessages flash={flash} />
       <p className="section-title">All users · {users.length}</p>
       {users.map((u) => (
@@ -607,6 +608,42 @@ function AdminPanel({ reloadMe, flash }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// Admin: global engine settings (sources + tuning) — moved out of the user UI.
+const ENGINE_SOURCES = ["remotive", "remoteok", "adzuna", "jooble", "apify"];
+function EngineSettings({ flash }) {
+  const [e, setE] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api.adminEngine().then((r) => setE(r.engine)).catch(() => {}); }, []);
+  if (!e) return null;
+  const set = (k, v) => setE((o) => ({ ...o, [k]: v }));
+  const toggleSrc = (src) => { const cur = new Set(e.sources || []); cur.has(src) ? cur.delete(src) : cur.add(src); set("sources", ENGINE_SOURCES.filter((x) => cur.has(x))); };
+  async function save() { setBusy(true); try { await api.adminEngineSave(e); flash?.("Engine settings saved"); } catch { flash?.("Save failed"); } finally { setBusy(false); } }
+  return (
+    <>
+      <p className="section-title">⚙️ Engine settings</p>
+      <div className="card">
+        <div className="hint" style={{ marginBottom: 12 }}>Global search-engine tuning — applies to every user. Hidden from the user side.</div>
+        <div className="field">
+          <label>Job sources</label>
+          <div className="job-meta">
+            {ENGINE_SOURCES.map((src) => {
+              const on = (e.sources || []).includes(src);
+              return <button key={src} type="button" className="tag" style={on ? { background: "var(--accent-weak)", borderColor: "var(--accent)", color: "var(--accent)" } : {}} onClick={() => toggleSrc(src)}>{on ? "✓ " : ""}{src}</button>;
+            })}
+          </div>
+          <div className="hint">remotive & remoteok are free · adzuna/jooble need a key · apify costs credits.</div>
+        </div>
+        <div className="grid2">
+          <div className="field"><label>Posted within (days)</label><input type="number" min="1" max="60" value={e.posted_within_days} onChange={(ev) => set("posted_within_days", parseInt(ev.target.value || "14", 10))} /></div>
+          <div className="field"><label>Match threshold (0–100)</label><input type="number" min="0" max="100" value={e.match_threshold} onChange={(ev) => set("match_threshold", parseInt(ev.target.value || "55", 10))} /></div>
+        </div>
+        <div className="field"><label>Max new jobs per check</label><input type="number" min="1" max="50" value={e.max_per_tick} onChange={(ev) => set("max_per_tick", parseInt(ev.target.value || "5", 10))} /></div>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save engine settings"}</button></div>
+      </div>
+    </>
   );
 }
 

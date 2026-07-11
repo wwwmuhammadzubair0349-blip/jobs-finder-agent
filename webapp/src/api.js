@@ -35,4 +35,6 @@ export const api = {
   adminAction: (user_id, action) => req("/admin-action", { method: "POST", body: JSON.stringify({ user_id, action }) }),
   adminContacts: () => req("/admin-contacts"),
   adminContactHandle: (id) => req("/admin-contacts", { method: "POST", body: JSON.stringify({ id }) }),
+  adminEngine: () => req("/admin-engine"),
+  adminEngineSave: (cfg) => req("/admin-engine", { method: "POST", body: JSON.stringify(cfg) }),
 };

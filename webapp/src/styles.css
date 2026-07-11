@@ -749,6 +749,44 @@ select.status {
 .jd-actions { display: flex; flex-wrap: wrap; gap: 9px; }
 .jd-track { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hair); }
 
+/* ---- Country dropdown + selected chips --------------------------------------- */
+.country-select {
+  width: 100%; border: 1px solid var(--hair-strong); background: var(--surface-2);
+  border-radius: 11px; padding: 11px 12px; font-size: 14.5px; cursor: pointer;
+}
+.country-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+.chip-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.sel-chip {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 550;
+  padding: 5px 6px 5px 12px; border-radius: 999px; background: var(--accent-weak);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--hair)); color: var(--accent);
+}
+.sel-chip button { border: none; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); width: 18px; height: 18px; border-radius: 50%; cursor: pointer; font-size: 11px; display: grid; place-items: center; }
+.sel-chip button:hover { background: var(--accent); color: #fff; }
+
+/* ---- Protected shell: premium branding polish -------------------------------- */
+.topbar .brand-badge { box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 45%, transparent); }
+.kpi { position: relative; overflow: hidden; }
+.kpi::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--grad); opacity: 0; transition: opacity 0.18s ease; }
+.kpi:hover::after { opacity: 0.5; }
+.kpis > .kpi[style*="var(--accent)"]::after { opacity: 1; }
+
+@media (min-width: 900px) {
+  .tabbar {
+    background: linear-gradient(185deg, var(--surface), color-mix(in srgb, var(--accent-weak) 35%, var(--surface)));
+  }
+  .side-brand { border-bottom: 1px solid var(--hair); margin-bottom: 10px; }
+  .tabbar .tab { position: relative; }
+  .tabbar .tab.active::before {
+    content: ""; position: absolute; left: -2px; top: 9px; bottom: 9px; width: 3px;
+    border-radius: 0 3px 3px 0; background: var(--grad);
+  }
+  .tabbar .tab.active { font-weight: 650; }
+}
+
+/* Seg sub-tabs get a touch of brand */
+.seg button.on { color: var(--ink); }
+
 /* ---- 2K / 4K scaling: crisp at any resolution ---------------------------------------------------- */
 @media (min-width: 2200px) { body { zoom: 1.25; } }
 @media (min-width: 3200px) { body { zoom: 1.6; } }
