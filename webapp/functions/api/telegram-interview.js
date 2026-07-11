@@ -40,21 +40,30 @@ export async function onRequestPost(context) {
   if (startTok) {
     const key = `tglink:${startTok[1].toLowerCase()}`;
     const raw = await env.KV.get(key);
-    if (raw) {
-      await env.KV.delete(key); // single-use
-      let uid = null;
-      try { uid = JSON.parse(raw).uid; } catch {}
-      const u = uid ? await one(env, "SELECT id FROM users WHERE id = ?", uid) : null;
-      if (u) {
-        await run(env, "UPDATE users SET interview_chat_id = ?, telegram_chat_id = COALESCE(telegram_chat_id, ?) WHERE id = ?", chatId, chatId, u.id);
-        await kvPut(env, `iv_conv:${chatId}`, freshConv());
-        await showMenu(token, chatId, channel, "✅ <b>Connected — your AI Interview Coach</b>");
-      } else {
-        await send(token, chatId, `⚠️ <b>Couldn't connect</b>\n${RULE}\nOpen your dashboard and tap <b>Connect Telegram</b> again.`);
-      }
-    } else {
+    if (!raw) {
       await send(token, chatId, `⌛ <b>This connect link expired</b>\n${RULE}\nLinks last 3 minutes — open your dashboard and tap <b>Connect Telegram</b> for a fresh one.`);
+      return json({ ok: true });
     }
+    let uid = null;
+    try { uid = JSON.parse(raw).uid; } catch {}
+    const u = uid ? await one(env, "SELECT id FROM users WHERE id = ?", uid) : null;
+    if (!u) {
+      await env.KV.delete(key);
+      await send(token, chatId, `⚠️ <b>Couldn't connect</b>\n${RULE}\nOpen your dashboard and tap <b>Connect Telegram</b> again.`);
+      return json({ ok: true });
+    }
+    // One Telegram links to exactly ONE account.
+    const clash = await one(env, "SELECT id FROM users WHERE (telegram_chat_id = ? OR interview_chat_id = ?) AND id != ?", chatId, chatId, u.id);
+    if (clash) {
+      await send(token, chatId,
+        `⚠️ <b>Already connected to another account</b>\n${RULE}\n` +
+        `This Telegram is linked to a different Jobs Finder account. Unlink it there first (Dashboard → Connect Telegram → Unlink), then connect here.`);
+      return json({ ok: true });
+    }
+    await env.KV.delete(key); // consume only on success
+    await run(env, "UPDATE users SET interview_chat_id = ?, telegram_chat_id = COALESCE(telegram_chat_id, ?) WHERE id = ?", chatId, chatId, u.id);
+    await kvPut(env, `iv_conv:${chatId}`, freshConv());
+    await showMenu(token, chatId, channel, "✅ <b>Connected — your AI Interview Coach</b>");
     return json({ ok: true });
   }
 

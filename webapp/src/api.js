@@ -28,6 +28,7 @@ export const api = {
   interviewChat: (payload) => req("/interview-chat", { method: "POST", body: JSON.stringify(payload) }),
   regenCode: () => req("/code", { method: "POST" }),
   tgLinkToken: () => req("/tg-link-token", { method: "POST" }),
+  tgUnlink: () => req("/tg-unlink", { method: "POST" }),
   // billing
   checkout: (plan) => req("/checkout", { method: "POST", body: JSON.stringify({ plan }) }),
   changePlan: (plan) => req("/change-plan", { method: "POST", body: JSON.stringify({ plan }) }),

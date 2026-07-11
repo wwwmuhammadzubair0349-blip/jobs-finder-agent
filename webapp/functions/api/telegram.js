@@ -87,26 +87,36 @@ export async function onRequestPost(context) {
     if (startTok) {
       const key = `tglink:${startTok[1].toLowerCase()}`;
       const raw = await env.KV.get(key);
-      if (raw) {
-        await env.KV.delete(key); // consume immediately (single-use)
-        let uid = null;
-        try { uid = JSON.parse(raw).uid; } catch {}
-        const u = uid ? await one(env, "SELECT id FROM users WHERE id = ?", uid) : null;
-        if (u) {
-          // One link covers both bots — chat id is the same across bots per user.
-          await run(env, "UPDATE users SET telegram_chat_id = ?, interview_chat_id = ? WHERE id = ?", chatId, chatId, u.id);
-          await send(token, chatId,
-            `✅ <b>You're connected!</b>\n${RULE}\n` +
-            `Fresh matching jobs — each with a tailored <b>CV</b> + <b>cover letter</b> + how-to-apply steps — will land right here. 🚀\n\n` +
-            `🧠 Your <b>Interview Coach bot</b> is linked too — open @interview_prep_coach_bot and press Start.`,
-            [[btnUrl("📢 Follow the channel", `https://t.me/${channel}`)]]);
-        } else {
-          await send(token, chatId, `⚠️ <b>Couldn't connect</b>\n${RULE}\nOpen your dashboard and tap <b>Connect Telegram</b> again.`);
-        }
-      } else {
+      if (!raw) {
         await send(token, chatId, `⌛ <b>This connect link expired</b>\n${RULE}\nLinks last 3 minutes. Open your dashboard, tap <b>Connect Telegram</b>, and use the fresh link.`,
           [[btnUrl("🔗 Open dashboard", dash)]]);
+        return json({ ok: true });
       }
+      let uid = null;
+      try { uid = JSON.parse(raw).uid; } catch {}
+      const u = uid ? await one(env, "SELECT id FROM users WHERE id = ?", uid) : null;
+      if (!u) {
+        await env.KV.delete(key);
+        await send(token, chatId, `⚠️ <b>Couldn't connect</b>\n${RULE}\nOpen your dashboard and tap <b>Connect Telegram</b> again.`);
+        return json({ ok: true });
+      }
+      // One Telegram links to exactly ONE account. If this chat already belongs
+      // to a different user, refuse — they must unlink there first.
+      const clash = await one(env, "SELECT id FROM users WHERE (telegram_chat_id = ? OR interview_chat_id = ?) AND id != ?", chatId, chatId, u.id);
+      if (clash) {
+        await send(token, chatId,
+          `⚠️ <b>Already connected to another account</b>\n${RULE}\n` +
+          `This Telegram is linked to a different Jobs Finder account. Open that account's dashboard → <b>Connect Telegram</b> → <b>Unlink</b>, then connect here.`);
+        return json({ ok: true }); // leave token valid so they can retry after unlinking
+      }
+      await env.KV.delete(key); // consume (single-use) only on a successful link
+      // One link covers both bots — chat id is the same across bots per user.
+      await run(env, "UPDATE users SET telegram_chat_id = ?, interview_chat_id = ? WHERE id = ?", chatId, chatId, u.id);
+      await send(token, chatId,
+        `✅ <b>You're connected!</b>\n${RULE}\n` +
+        `Fresh matching jobs — each with a tailored <b>CV</b> + <b>cover letter</b> + how-to-apply steps — will land right here. 🚀\n\n` +
+        `🧠 Your <b>Interview Coach bot</b> is linked too — open @interview_prep_coach_bot and press Start.`,
+        [[btnUrl("📢 Follow the channel", `https://t.me/${channel}`)]]);
       return json({ ok: true });
     }
 

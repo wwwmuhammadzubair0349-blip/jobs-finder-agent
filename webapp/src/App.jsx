@@ -609,6 +609,12 @@ function ConnectCard({ me, reloadMe }) {
 
   useEffect(() => () => clearInterval(pollRef.current), []);
 
+  async function unlink() {
+    if (!window.confirm("Unlink Telegram? Jobs and interview prep will stop arriving there until you reconnect.")) return;
+    setBusy(true);
+    try { await api.tgUnlink(); setWaiting(false); reloadMe(); } finally { setBusy(false); }
+  }
+
   async function connect() {
     setErr(""); setBusy(true);
     try {
@@ -637,6 +643,7 @@ function ConnectCard({ me, reloadMe }) {
           <div style={{ fontWeight: 650 }}>Telegram connected</div>
           <div className="hint">Jobs, CVs & interview prep arrive on your phone.</div>
         </div>
+        <button className="btn ghost sm" onClick={unlink} disabled={busy}>{busy ? "…" : "Unlink"}</button>
       </div>
     );
   }
