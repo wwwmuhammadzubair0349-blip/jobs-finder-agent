@@ -714,6 +714,14 @@ select.status {
 /* Today keeps ONE roomy column in the main area (no cramped 2-col wrap). */
 .dash-main .job-list { grid-template-columns: 1fr !important; }
 .see-all { width: 100%; justify-content: center; margin-top: 12px; font-weight: 600; }
+@media (min-width: 1080px) { .dash-grid.norail { grid-template-columns: 1fr; } }
+
+/* Header Telegram status pill */
+.tg-pill { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12.5px; font-weight: 650; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--hair-strong); background: var(--surface); transition: transform 0.15s ease, border-color 0.15s ease; }
+.tg-pill:hover { transform: translateY(-1px); }
+.tg-pill.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--hair)); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.tg-pill:not(.on) { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 42%, var(--hair)); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+@media (max-width: 620px) { .tg-pill-txt { display: none; } }
 
 /* ---- Premium job cards + details modal --------------------------------------- */
 .jobcard.clickable { cursor: pointer; }

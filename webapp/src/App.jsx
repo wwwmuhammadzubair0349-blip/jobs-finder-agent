@@ -56,6 +56,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
   const [showPricing, setShowPricing] = useState(false);
   const [detail, setDetail] = useState(null);   // job open in the details modal
   const [interviewJob, setInterviewJob] = useState(null); // job open in the interview chat
+  const [showConnect, setShowConnect] = useState(false);  // telegram connect modal
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("jf_tour_done"));
   // Profile popup shows once per session — the in-page CTAs carry it after that.
   const [nagDismissed, setNagDismissed] = useState(() => !!sessionStorage.getItem("jf_nag_done"));
@@ -200,6 +201,9 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         <span className="brand"><span className="brand-badge">JF</span>Jobs Finder<span className="dot">.</span></span>
         <RunState latest={data?.latest_run} />
         <span className="spacer" />
+        <button className={`tg-pill${me.user?.telegram_connected ? " on" : ""}`} onClick={() => setShowConnect(true)} title={me.user?.telegram_connected ? "Telegram connected" : "Connect Telegram"}>
+          <span>✈️</span><span className="tg-pill-txt">{me.user?.telegram_connected ? "Telegram" : "Connect"}</span>
+        </button>
         {data?.plan && <PlanBadge plan={data.plan} onClick={() => setShowPricing(true)} />}
         <button className="icon-btn" title="Refresh data" onClick={load}><IconRefresh /></button>
         <button className="icon-btn" title="Theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><IconSun /></button>
@@ -220,7 +224,7 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         {tab === "admin" && <AdminPanel reloadMe={reloadMe} flash={flash} />}
         {tab === "jobs" && <MyJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} onInterview={openInterview} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
-        {tab === "profile" && (config ? <ProfileTab config={config} onSave={saveConfig} plan={data?.plan?.id || me.user?.plan || "free"} /> : <Loading />)}
+        {tab === "profile" && (config ? <ProfileTab config={config} onSave={saveConfig} plan={data?.plan?.id || me.user?.plan || "free"} planData={data?.plan} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} /> : <Loading />)}
       </div>
 
       <nav className="tabbar">
@@ -244,6 +248,18 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       })()}
 
       {interviewJob && <InterviewChat job={interviewJob} onClose={() => setInterviewJob(null)} onUpgrade={() => setShowPricing(true)} />}
+
+      {showConnect && (
+        <div className="modal-back" onClick={() => setShowConnect(false)}>
+          <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <div className="job-top" style={{ marginBottom: 12 }}>
+              <div className="job-title">✈️ Telegram</div>
+              <button className="icon-btn" onClick={() => setShowConnect(false)}>✕</button>
+            </div>
+            <ConnectCard me={me} reloadMe={reloadMe} />
+          </div>
+        </div>
+      )}
 
       {showPricing && (
         <PricingModal
@@ -459,6 +475,8 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, 
   ];
   const hr = new Date().getHours();
   const greet = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
+  const telegramConnected = me.user?.telegram_connected;
+  const showRail = !complete || !telegramConnected;
   const lists = { total: allJobs, today: todayJobs, applied: appliedJobs, auto: autoJobs, saved: savedJobs, ready: readyJobs, interviews: interviewJobs };
   const full = lists[filter] || [];
   const PREVIEW = 8;
@@ -489,7 +507,7 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, 
 
       <AgentGrid status={data.agents_status || []} current={data.latest_run?.current} running={data.latest_run?.status === "running"} />
 
-      <div className="dash-grid">
+      <div className={`dash-grid${showRail ? "" : " norail"}`}>
         <div className="dash-main">
           <p className="section-title">{titleMap[filter]} · {full.length}</p>
           {shown.length === 0
@@ -503,11 +521,12 @@ function Today({ me, data, onApp, onSend, onShare, onSave, onOpen, onInterview, 
                 {full.length > shown.length && <button className="btn ghost see-all" onClick={onSeeAll}>See all {full.length} in My jobs →</button>}
               </>}
         </div>
-        <aside className="dash-rail">
-          <SetupChecklist complete={complete} telegram={me.user?.telegram_connected} goProfile={goProfile} />
-          {data.plan && <UsageMeters plan={data.plan} onOpen={onUpgrade} onManage={onManage} />}
-          <ConnectCard me={me} reloadMe={reloadMe} />
-        </aside>
+        {showRail && (
+          <aside className="dash-rail">
+            <SetupChecklist complete={complete} telegram={telegramConnected} goProfile={goProfile} />
+            {!telegramConnected && <ConnectCard me={me} reloadMe={reloadMe} />}
+          </aside>
+        )}
       </div>
     </div>
   );
@@ -746,27 +765,36 @@ function MyJobsList({ data, onApp, onSend, onShare, onSave, onOpen, onInterview,
   );
 }
 
-/* ---------------- Profile (Personal + Preferences sub-tabs) ---------------- */
-function ProfileTab({ config, onSave, plan }) {
+/* ---------------- Profile (Personal + Preferences + Subscription) ---------------- */
+function ProfileTab({ config, onSave, plan, planData, onUpgrade, onManage }) {
   const [sub, setSub] = useState("personal");
   return (
     <div className="fade">
-      <div className="seg" style={{ maxWidth: 420 }}>
+      <div className="seg" style={{ maxWidth: 560 }}>
         <button className={sub === "personal" ? "on" : ""} onClick={() => setSub("personal")}>Personal info</button>
         <button className={sub === "prefs" ? "on" : ""} onClick={() => setSub("prefs")}>Preferences</button>
+        <button className={sub === "sub" ? "on" : ""} onClick={() => setSub("sub")}>Subscription</button>
       </div>
-      {sub === "personal"
-        ? <ProfileEditor key="p" initial={config.profile} onSave={onSave} />
-        : (
-          <div key="prefs">
-            <p className="section-title">🎯 What you're looking for</p>
-            <SearchEditor initial={config.search} onSave={onSave} plan={plan} />
-            <p className="section-title" style={{ marginTop: 22 }}>⏰ Schedule</p>
-            <ScheduleEditor initial={config.schedule} onSave={onSave} />
-            <p className="section-title" style={{ marginTop: 22 }}>🤖 Auto-apply</p>
-            <AutoApplyEditor initial={config.auto_apply || {}} onSave={onSave} plan={plan} />
-          </div>
-        )}
+      {sub === "personal" && <ProfileEditor key="p" initial={config.profile} onSave={onSave} />}
+      {sub === "prefs" && (
+        <div key="prefs">
+          <p className="section-title">🎯 What you're looking for</p>
+          <SearchEditor initial={config.search} onSave={onSave} plan={plan} />
+          <p className="section-title" style={{ marginTop: 22 }}>⏰ Schedule</p>
+          <ScheduleEditor initial={config.schedule} onSave={onSave} />
+          <p className="section-title" style={{ marginTop: 22 }}>🤖 Auto-apply</p>
+          <AutoApplyEditor initial={config.auto_apply || {}} onSave={onSave} plan={plan} />
+        </div>
+      )}
+      {sub === "sub" && (
+        <div key="sub">
+          <p className="section-title">👑 Plan, limits & billing</p>
+          {planData
+            ? <UsageMeters plan={planData} onOpen={onUpgrade} onManage={onManage} />
+            : <Loading />}
+          <p className="hint" style={{ textAlign: "center", marginTop: 12 }}>Switch plans anytime. Upgrades are prorated; downgrades apply at the end of your billing period.</p>
+        </div>
+      )}
     </div>
   );
 }
