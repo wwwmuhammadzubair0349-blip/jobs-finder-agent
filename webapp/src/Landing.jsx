@@ -1,0 +1,117 @@
+import React from "react";
+import { PLANS, planEmoji } from "./plans";
+
+const STEPS = [
+  { n: "1", t: "Tell us who you are", d: "Add your profile once — skills, experience, target roles. Two minutes." },
+  { n: "2", t: "Agents hunt 24/7", d: "We search Indeed, LinkedIn, Adzuna, Jooble & more across the countries you pick." },
+  { n: "3", t: "Get matches + docs", d: "Each match arrives with a tailored CV & cover letter — on your Telegram, ready to apply." },
+];
+
+const FEATURES = [
+  { icon: "🔎", t: "Always-on search", d: "Fresh, matched jobs around the clock — you never scroll a job board again." },
+  { icon: "✍️", t: "A CV per job", d: "ATS-friendly CV + cover letter auto-written for each role, in your voice." },
+  { icon: "🤖", t: "Auto-apply", d: "Opt in and we apply for you from your own inbox — safely, within your limits." },
+  { icon: "🧠", t: "AI interview coach", d: "Realistic mock interviews with feedback and tips after every answer." },
+  { icon: "✈️", t: "Straight to Telegram", d: "Everything lands on your phone. Tap to download or apply in minutes." },
+  { icon: "📊", t: "One clean dashboard", d: "Track matches, applications and your pipeline in one place." },
+];
+
+export default function Landing({ onAuth }) {
+  return (
+    <div className="lp">
+      <header className="lp-nav">
+        <a className="lp-brand" href="/"><span className="brand-mark sm">JF</span>Jobs Finder<span className="grad-dot">.</span></a>
+        <span style={{ flex: 1 }} />
+        <a className="lp-navlink" href="/jobs">Jobs</a>
+        <a className="lp-navlink" href="#pricing">Pricing</a>
+        <a className="lp-navlink" href="/contact">Contact</a>
+        <button className="btn ghost sm" onClick={() => onAuth("login")}>Log in</button>
+        <button className="btn primary sm" onClick={() => onAuth("signup")}>Get started</button>
+      </header>
+
+      {/* Hero */}
+      <section className="lp-hero">
+        <div className="lp-aurora a1" /><div className="lp-aurora a2" />
+        <div className="lp-hero-in">
+          <div className="lp-badge">🚀 Your job hunt, automated</div>
+          <h1 className="lp-h1">Stop scrolling job boards.<br /><span className="grad-text">Let agents do the hunt.</span></h1>
+          <p className="lp-sub">Jobs Finder searches the web 24/7, writes a tailored CV &amp; cover letter for every match, and sends them to your Telegram — while you get on with your day.</p>
+          <div className="lp-cta">
+            <button className="btn primary big" onClick={() => onAuth("signup")}>Start free →</button>
+            <a className="btn ghost big" href="/jobs">Browse jobs</a>
+          </div>
+          <div className="lp-trust">🔒 Free to start · No credit card · 2-minute setup</div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="lp-section">
+        <p className="lp-eyebrow">How it works</p>
+        <h2 className="lp-h2">From profile to interview-ready in minutes</h2>
+        <div className="lp-steps">
+          {STEPS.map((s) => (
+            <div className="lp-step" key={s.n}>
+              <div className="lp-step-n">{s.n}</div>
+              <div className="lp-step-t">{s.t}</div>
+              <div className="lp-step-d">{s.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="lp-section">
+        <p className="lp-eyebrow">Everything you need</p>
+        <h2 className="lp-h2">One agent team, working for your career</h2>
+        <div className="lp-feats">
+          {FEATURES.map((f) => (
+            <div className="lp-feat" key={f.t}>
+              <div className="lp-feat-ico">{f.icon}</div>
+              <div className="lp-feat-t">{f.t}</div>
+              <div className="lp-feat-d">{f.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="lp-section" id="pricing">
+        <p className="lp-eyebrow">Pricing</p>
+        <h2 className="lp-h2">Start free. Upgrade when it's working.</h2>
+        <div className="lp-prices">
+          {PLANS.map((p) => (
+            <div className={`lp-price${p.popular ? " pop" : ""}`} key={p.id}>
+              {p.popular && <div className="lp-flag">★ Most popular</div>}
+              <div className="lp-price-h">{planEmoji(p.id)} {p.label}</div>
+              <div className="lp-price-amt">{p.price === 0 ? <b>Free</b> : <><span className="cur">$</span><b>{p.price}</b><span className="per">/mo</span></>}</div>
+              <div className="lp-price-tag">{p.tagline}</div>
+              <ul className="lp-price-feats">{p.features.map((f, i) => <li key={i}><span className="tick">✓</span>{f}</li>)}</ul>
+              <button className={`btn sm ${p.popular ? "primary" : "ghost"}`} onClick={() => onAuth("signup")}>{p.price === 0 ? "Start free" : "Get " + p.label}</button>
+            </div>
+          ))}
+        </div>
+        <p className="lp-fineprint">Prices in USD. Cancel anytime · upgrades are prorated · downgrades apply at period end.</p>
+      </section>
+
+      {/* Final CTA */}
+      <section className="lp-final">
+        <h2>Your next job is already out there.</h2>
+        <p>Let your agents find it — and write the CV — while you sleep.</p>
+        <button className="btn big" onClick={() => onAuth("signup")}>Create my free account →</button>
+      </section>
+
+      <footer className="lp-foot">
+        <div className="lp-foot-in">
+          <span>© {new Date().getFullYear()} Jobs Finder</span>
+          <span style={{ flex: 1 }} />
+          <a href="/jobs">Jobs</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/refund">Refunds</a>
+          <a href="https://t.me/dailyjobs_feed" target="_blank" rel="noreferrer">Telegram</a>
+        </div>
+      </footer>
+    </div>
+  );
+}

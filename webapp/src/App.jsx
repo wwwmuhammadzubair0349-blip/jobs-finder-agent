@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "./api";
 import Login from "./Login";
+import Landing from "./Landing";
 import Tour from "./Tour";
 import { Kpi, JobCard, Empty } from "./parts";
 import { ProfileEditor, SearchEditor, ScheduleEditor, AutoApplyEditor } from "./Editors";
@@ -28,8 +29,16 @@ export default function App() {
   }, [theme]);
 
   if (me === undefined) return <div className="login-wrap"><div className="pill">Loading…</div></div>;
-  if (!me) return <Login onLogin={loadMe} />;
+  if (!me) return <PublicSite onLogin={loadMe} />;
   return <Dashboard me={me} reloadMe={loadMe} onLogout={() => { api.logout(); setMe(null); }} theme={theme} setTheme={setTheme} />;
+}
+
+// Logged-out experience: branded landing page → auth form on CTA.
+function PublicSite({ onLogin }) {
+  const q = new URLSearchParams(window.location.search).get("auth");
+  const [authView, setAuthView] = useState(q === "login" || q === "signup" ? q : null);
+  if (authView) return <Login onLogin={onLogin} initialMode={authView} onBack={() => setAuthView(null)} />;
+  return <Landing onAuth={setAuthView} />;
 }
 
 function isProfileComplete(config) {
@@ -550,6 +559,7 @@ function AdminPanel({ reloadMe, flash }) {
   }
   return (
     <div className="fade">
+      <ContactMessages flash={flash} />
       <p className="section-title">All users · {users.length}</p>
       {users.map((u) => (
         <div className="card" key={u.id}>
@@ -570,6 +580,34 @@ function AdminPanel({ reloadMe, flash }) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// Admin: contact-form submissions.
+function ContactMessages({ flash }) {
+  const [msgs, setMsgs] = useState(null);
+  const load = useCallback(() => api.adminContacts().then((r) => setMsgs(r.messages || [])).catch(() => setMsgs([])), []);
+  useEffect(() => { load(); }, [load]);
+  if (!msgs) return null;
+  const open = msgs.filter((m) => !m.handled).length;
+  async function handle(m) { await api.adminContactHandle(m.id); flash?.("Marked handled"); load(); }
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <p className="section-title">📨 Contact messages · {msgs.length}{open ? ` (${open} new)` : ""}</p>
+      {msgs.length === 0 ? <div className="hint" style={{ padding: "0 2px 8px" }}>No messages yet.</div> :
+        msgs.map((m) => (
+          <div className="card" key={m.id} style={m.handled ? { opacity: 0.6 } : { borderColor: "var(--accent)" }}>
+            <div className="job-top">
+              <div>
+                <div className="job-title" style={{ fontSize: 15 }}>{m.name} {!m.handled && <span className="tag" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>new</span>}</div>
+                <div className="hint"><a href={`mailto:${m.email}`}>{m.email}</a> · {timeAgo(m.created_at)}</div>
+              </div>
+              {!m.handled && <button className="btn sm" onClick={() => handle(m)}>Mark handled</button>}
+            </div>
+            <p style={{ whiteSpace: "pre-wrap", color: "var(--ink-2)", fontSize: 14, margin: "8px 0 0" }}>{m.message}</p>
+          </div>
+        ))}
     </div>
   );
 }

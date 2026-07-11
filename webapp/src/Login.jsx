@@ -8,8 +8,8 @@ const FEATURES = [
   { icon: "🧠", title: "AI interview coach", text: "Real mock interviews with feedback on every answer." },
 ];
 
-export default function Login({ onLogin }) {
-  const [mode, setMode] = useState("signup");
+export default function Login({ onLogin, initialMode = "signup", onBack }) {
+  const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState("");
   const [password, setP] = useState("");
   const [err, setErr] = useState("");
@@ -69,6 +69,7 @@ export default function Login({ onLogin }) {
       </aside>
 
       <main className="form-pane">
+        {onBack && <button type="button" className="btn ghost sm auth-back" onClick={onBack}>← Home</button>}
         <form className="auth-card" onSubmit={submit}>
           <div className="auth-head">
             <div className="auth-title">{mode === "signup" ? "Create your account" : "Welcome back"}</div>

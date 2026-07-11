@@ -551,6 +551,78 @@ select.status {
 .price-feats li { font-size: 13px; color: var(--ink-2); display: flex; align-items: flex-start; gap: 7px; }
 .price-feats .tick { color: var(--ok); font-weight: 800; flex: none; }
 
+/* ---- Public landing page ----------------------------------------------------- */
+.lp { min-height: 100vh; background: var(--bg); }
+.auth-back { position: absolute; top: 16px; left: 16px; z-index: 5; }
+.lp-nav {
+  position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px;
+  max-width: 1080px; margin: 0 auto; padding: 14px 20px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px);
+}
+.lp-brand { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-weight: 800; font-size: 17px; color: var(--ink); text-decoration: none; }
+.brand-mark.sm { width: 28px; height: 28px; font-size: 12px; }
+.lp-navlink { color: var(--ink-2); font-size: 14px; font-weight: 500; }
+@media (hover: hover) { .lp-navlink:hover { color: var(--ink); } }
+@media (max-width: 620px) { .lp-navlink { display: none; } }
+
+.lp-hero { position: relative; overflow: hidden; padding: 56px 20px 60px; text-align: center; }
+.lp-aurora { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.5; pointer-events: none; }
+.lp-aurora.a1 { width: 460px; height: 460px; background: #6366f1; top: -160px; left: -80px; }
+.lp-aurora.a2 { width: 420px; height: 420px; background: #a855f7; top: -120px; right: -100px; }
+.lp-hero-in { position: relative; max-width: 760px; margin: 0 auto; }
+.lp-badge { display: inline-block; font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-weak); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--hair)); padding: 6px 13px; border-radius: 999px; margin-bottom: 18px; }
+.lp-h1 { font-family: var(--display); font-weight: 800; font-size: clamp(32px, 6vw, 52px); line-height: 1.05; letter-spacing: -1.5px; margin: 0 0 16px; text-wrap: balance; }
+.lp-sub { font-size: clamp(15px, 2.4vw, 18px); color: var(--ink-2); max-width: 620px; margin: 0 auto 26px; line-height: 1.6; }
+.lp-cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.lp-trust { margin-top: 20px; color: var(--muted); font-size: 13px; }
+
+.lp-section { max-width: 1080px; margin: 0 auto; padding: 44px 20px; }
+.lp-eyebrow { text-align: center; text-transform: uppercase; letter-spacing: 1.2px; font-size: 12.5px; font-weight: 700; color: var(--accent); margin: 0 0 6px; }
+.lp-h2 { text-align: center; font-family: var(--display); font-weight: 750; font-size: clamp(23px, 4vw, 32px); letter-spacing: -0.6px; margin: 0 0 30px; text-wrap: balance; }
+
+.lp-steps { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .lp-steps { grid-template-columns: repeat(3, 1fr); } }
+.lp-step { background: var(--surface); border: 1px solid var(--hair); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
+.lp-step-n { width: 34px; height: 34px; border-radius: 10px; background: var(--grad); color: #fff; display: grid; place-items: center; font-weight: 800; margin-bottom: 12px; }
+.lp-step-t { font-weight: 700; font-size: 16px; margin-bottom: 5px; }
+.lp-step-d { color: var(--ink-2); font-size: 14px; }
+
+.lp-feats { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .lp-feats { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 940px) { .lp-feats { grid-template-columns: repeat(3, 1fr); } }
+.lp-feat { background: var(--surface); border: 1px solid var(--hair); border-radius: var(--radius); padding: 20px; transition: transform 0.18s ease, border-color 0.18s ease; }
+@media (hover: hover) { .lp-feat:hover { transform: translateY(-3px); border-color: var(--hair-strong); } }
+.lp-feat-ico { font-size: 26px; margin-bottom: 8px; }
+.lp-feat-t { font-weight: 700; font-size: 15.5px; margin-bottom: 4px; }
+.lp-feat-d { color: var(--ink-2); font-size: 13.5px; }
+
+.lp-prices { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 620px) { .lp-prices { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 980px) { .lp-prices { grid-template-columns: repeat(4, 1fr); } }
+.lp-price { position: relative; background: var(--surface); border: 1px solid var(--hair); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow); }
+.lp-price.pop { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-weak); }
+.lp-flag { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: var(--grad); color: #fff; font-size: 10.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.lp-price-h { font-family: var(--display); font-weight: 700; font-size: 17px; }
+.lp-price-amt { display: flex; align-items: baseline; gap: 2px; }
+.lp-price-amt .cur { font-size: 16px; font-weight: 700; color: var(--ink-2); }
+.lp-price-amt b { font-family: var(--display); font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+.lp-price-amt .per { font-size: 13px; color: var(--muted); }
+.lp-price-tag { font-size: 12.5px; color: var(--muted); }
+.lp-price-feats { list-style: none; padding: 0; margin: 4px 0 12px; display: grid; gap: 6px; flex: 1; }
+.lp-price-feats li { font-size: 13px; color: var(--ink-2); display: flex; gap: 7px; }
+.lp-price-feats .tick { color: var(--ok); font-weight: 800; }
+.lp-fineprint { text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 16px; }
+
+.lp-final { max-width: 720px; margin: 20px auto; padding: 44px 24px; text-align: center; background: linear-gradient(135deg, #0b0a1e, #241a52); border-radius: 22px; color: #fff; }
+.lp-final h2 { font-family: var(--display); font-weight: 800; font-size: clamp(22px, 4vw, 30px); margin: 0 0 8px; letter-spacing: -0.5px; }
+.lp-final p { color: rgba(255,255,255,0.7); margin: 0 0 20px; }
+.lp-final .btn.big { background: #fff; color: #1b1740; }
+
+.lp-foot { border-top: 1px solid var(--hair); margin-top: 30px; }
+.lp-foot-in { max-width: 1080px; margin: 0 auto; padding: 22px 20px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; color: var(--muted); font-size: 13px; }
+.lp-foot-in a { color: var(--muted); text-decoration: none; }
+@media (hover: hover) { .lp-foot-in a:hover { color: var(--ink); } }
+
 /* ---- 2K / 4K scaling: crisp at any resolution ---------------------------------------------------- */
 @media (min-width: 2200px) { body { zoom: 1.25; } }
 @media (min-width: 3200px) { body { zoom: 1.6; } }
