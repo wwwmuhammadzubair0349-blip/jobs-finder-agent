@@ -5,7 +5,7 @@ import { one } from "../_shared/db.js";
 import { json, badRequest } from "../_shared/kv.js";
 import { consume, userTimezone, metricLimit, PLAN_META } from "../_shared/plans.js";
 
-const MAX_QUESTIONS = 6;
+const MAX_QUESTIONS = 15;
 
 export async function onRequestPost(context) {
   const { env, data, request } = context;

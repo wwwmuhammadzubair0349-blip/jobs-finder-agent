@@ -356,9 +356,9 @@ def _notif_wall(chat_id, plan) -> None:
         dash = "https://jobs-finder-dashboard.pages.dev"
         label = (PLAN_META.get(plan) or PLAN_META["free"])["label"]
         send_message(
-            f"🔔 <b>That's today's job alerts on your {label} plan.</b>\n"
-            f"More fresh matches are waiting — upgrade to receive up to 25/day (Pro) "
-            f"or unlimited (Pro Plus). 👉 {dash}",
+            f"🔔 <b>Today's job-alert limit reached on your {label} plan.</b>\n"
+            f"More fresh matches are waiting. Upgrade to get more each day — "
+            f"or wait for tomorrow, when your alerts reset. 👉 {dash}",
             chat_id=chat_id)
     except Exception:
         pass

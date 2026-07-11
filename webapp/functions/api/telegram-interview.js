@@ -13,8 +13,8 @@ import { consume, remaining, metricLimit, userTimezone, PLAN_META } from "../_sh
 
 const CODE_RE = /\bJF-[A-Z0-9]{6}\b/i;
 const RULE = "──────────────";
-const MAX_TURNS = 16;         // rolling context window
-const MAX_QUESTIONS = 6;      // interview auto-wraps after this many answers
+const MAX_TURNS = 30;         // rolling context window
+const MAX_QUESTIONS = 15;     // interview auto-wraps after this many answers
 
 const GREET = ["hi", "hello", "hey", "menu", "start", "/start", "begin", "help"];
 
