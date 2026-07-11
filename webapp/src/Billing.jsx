@@ -50,8 +50,10 @@ export function UsageMeters({ plan, onOpen, onManage }) {
     <div className="card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <p className="section-title" style={{ margin: 0 }}>{planEmoji(plan.id)} Your plan · {plan.label}</p>
-        {!isTop && <button className="btn primary sm" onClick={onOpen}>⭐ Upgrade</button>}
-        {isTop && <span className="tag" style={{ color: "var(--ok)", borderColor: "var(--ok)" }}>Top tier</span>}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {isTop && <span className="tag" style={{ color: "var(--ok)", borderColor: "var(--ok)" }}>Top tier</span>}
+          <button className={`btn sm ${isTop ? "" : "primary"}`} onClick={onOpen}>{isTop ? "Change plan" : "⭐ Upgrade"}</button>
+        </div>
       </div>
       <div className="meters">
         {order.map((k) => plan.usage[k] && <MeterRow key={k} mkey={k} u={plan.usage[k]} />)}
