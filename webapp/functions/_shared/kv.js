@@ -28,3 +28,23 @@ export function badRequest(msg) {
 export function unauthorized() {
   return json({ error: "unauthorized" }, { status: 401 });
 }
+
+// Fixed-window rate limiter backed by KV. Returns true if allowed (and counts
+// the hit), false if the window's limit is already reached. Fails open on KV
+// error so a KV blip never locks users out.
+export async function rateLimit(env, bucket, max, windowSec) {
+  try {
+    const key = `rl:${bucket}`;
+    const n = parseInt(await env.KV.get(key), 10) || 0;
+    if (n >= max) return false;
+    await env.KV.put(key, String(n + 1), { expirationTtl: windowSec });
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+// Best-effort client IP for rate-limit bucketing.
+export function clientIp(request) {
+  return request.headers.get("CF-Connecting-IP") || "unknown";
+}

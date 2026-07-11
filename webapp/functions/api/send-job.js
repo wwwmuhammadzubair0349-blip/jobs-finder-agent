@@ -1,10 +1,14 @@
 // POST /api/send-job { job_id } — queue CV/CL generation + Telegram delivery only.
 import { one, run } from "../_shared/db.js";
-import { json, badRequest } from "../_shared/kv.js";
+import { json, badRequest, rateLimit } from "../_shared/kv.js";
 import { consume, userTimezone, PLAN_META } from "../_shared/plans.js";
 
 export async function onRequestPost(context) {
   const { env, data } = context;
+  // Abuse guard: cap prepare/dispatch calls per user (20 / 5 min).
+  if (!(await rateLimit(env, `sendjob:${data.userId}`, 20, 300))) {
+    return json({ ok: false, error: "rate", message: "Too many requests — slow down a moment." }, { status: 429 });
+  }
   let body;
   try { body = await context.request.json(); } catch { return badRequest("invalid json"); }
   const jobId = body?.job_id || body?.job?.id;

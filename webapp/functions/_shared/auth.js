@@ -99,10 +99,11 @@ export async function verifySession(request, secret) {
 export async function hashPassword(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const iterations = 100000; // capped by Cloudflare's per-request CPU budget (higher 500s)
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, key, 256
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256
   );
-  return `pbkdf2$100000$${bytesToB64(salt)}$${bytesToB64(new Uint8Array(bits))}`;
+  return `pbkdf2$${iterations}$${bytesToB64(salt)}$${bytesToB64(new Uint8Array(bits))}`;
 }
 
 export { COOKIE_NAME };

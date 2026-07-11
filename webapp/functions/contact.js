@@ -15,6 +15,7 @@ export async function onRequestGet(context) {
 
     <h2>Send us a message</h2>
     <form id="cf">
+      <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
       <div class="field"><label>Your name</label><input name="name" required maxlength="80" placeholder="Jane Doe" /></div>
       <div class="field"><label>Your email</label><input name="email" type="email" required maxlength="120" placeholder="you@email.com" /></div>
       <div class="field"><label>Message</label><textarea name="message" required maxlength="2000" placeholder="How can we help?"></textarea></div>
@@ -33,7 +34,7 @@ export async function onRequestGet(context) {
     try{
       var fd=new FormData(f);
       var r=await fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({name:fd.get('name'),email:fd.get('email'),message:fd.get('message')})});
+        body:JSON.stringify({name:fd.get('name'),email:fd.get('email'),message:fd.get('message'),website:fd.get('website')})});
       var j=await r.json();
       if(r.ok&&j.ok){f.reset();ok.style.display='block';btn.style.display='none';}
       else{throw new Error(j.message||'Please try again.');}

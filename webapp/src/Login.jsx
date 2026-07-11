@@ -16,13 +16,14 @@ export default function Login({ onLogin, initialMode = "signup", onBack }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [hp, setHp] = useState(""); // honeypot — must stay empty
 
   async function submit(e) {
     e.preventDefault();
     setErr(""); setNote(""); setBusy(true);
     try {
       if (mode === "signup") {
-        await api.signup(email, password);
+        await api.signup(email, password, hp);
         localStorage.setItem("jf_new_user", "1");
         setMode("login");
         setNote("Account created 🎉 — log in to get started.");
@@ -80,6 +81,10 @@ export default function Login({ onLogin, initialMode = "signup", onBack }) {
             <button type="button" className={mode === "signup" ? "on" : ""} onClick={() => { setMode("signup"); setErr(""); }}>Sign up free</button>
             <button type="button" className={mode === "login" ? "on" : ""} onClick={() => { setMode("login"); setErr(""); }}>Log in</button>
           </div>
+
+          {/* Honeypot: hidden from humans, catches form-filling bots. */}
+          <input type="text" name="website" value={hp} onChange={(e) => setHp(e.target.value)} tabIndex={-1} autoComplete="off" aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }} />
 
           <div className="field">
             <label>Email</label>

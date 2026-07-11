@@ -2,13 +2,17 @@
 // Body: { job: {title, description}, messages: [{role,content}], start: bool }
 // On start we consume one interview credit (plan-gated). Returns { reply, done }.
 import { one } from "../_shared/db.js";
-import { json, badRequest } from "../_shared/kv.js";
+import { json, badRequest, rateLimit } from "../_shared/kv.js";
 import { consume, userTimezone, metricLimit, PLAN_META } from "../_shared/plans.js";
 
 const MAX_QUESTIONS = 15;
 
 export async function onRequestPost(context) {
   const { env, data, request } = context;
+  // Abuse guard: cap LLM calls per user (60 / 5 min).
+  if (!(await rateLimit(env, `ivchat:${data.userId}`, 60, 300))) {
+    return json({ ok: false, error: "rate", message: "You're going a bit fast — give it a moment." }, { status: 429 });
+  }
   let body;
   try { body = await request.json(); } catch { return badRequest("invalid json"); }
   const job = body?.job || {};

@@ -1,11 +1,15 @@
 // POST /api/contact — public: store a contact-form message for the admin panel.
 import { run, uuid, nowIso } from "../_shared/db.js";
-import { json, badRequest } from "../_shared/kv.js";
+import { json, badRequest, rateLimit, clientIp } from "../_shared/kv.js";
 
 export async function onRequestPost(context) {
   const { env, request } = context;
+  if (!(await rateLimit(env, `contact:${clientIp(request)}`, 5, 3600))) {
+    return json({ ok: false, message: "Too many messages — please try again later." }, { status: 429 });
+  }
   let b;
   try { b = await request.json(); } catch { return badRequest("invalid json"); }
+  if ((b?.website || b?.hp || "").trim()) return json({ ok: true }); // honeypot
 
   const name = String(b?.name || "").trim().slice(0, 80);
   const email = String(b?.email || "").trim().slice(0, 120);

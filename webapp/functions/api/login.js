@@ -19,6 +19,7 @@ export async function onRequestPost(context) {
   const email = (body.email || "").trim().toLowerCase();
   const password = body.password || "";
   if (!email || !password) return badRequest("Email and password required");
+  if (password.length > 200 || email.length > 160) return badRequest("Invalid credentials");
 
   const user = await one(env, "SELECT * FROM users WHERE email = ?", email);
   const ok = user && user.status !== "disabled" && (await verifyPassword(password, user.password_hash));
