@@ -115,8 +115,8 @@ export async function onRequestPost(context) {
       await send(token, chatId,
         `✅ <b>You're connected!</b>\n${RULE}\n` +
         `Fresh matching jobs — each with a tailored <b>CV</b> + <b>cover letter</b> + how-to-apply steps — will land right here. 🚀\n\n` +
-        `🧠 Your <b>Interview Coach bot</b> is linked too — open @interview_prep_coach_bot and press Start.`,
-        [[btnUrl("📢 Follow the channel", `https://t.me/${channel}`)]]);
+        `👇 Your <b>4-agent team</b> is linked and ready — the <b>Interview Coach</b> and <b>Auto-Apply Notifier</b> run off this same connection (just press Start in each):`,
+        [teamRow("jobs"), [btnUrl("📢 Daily Jobs channel", `https://t.me/${channel}`)]]);
       return json({ ok: true });
     }
 
@@ -138,8 +138,8 @@ export async function onRequestPost(context) {
     } else {
       const already = await one(env, "SELECT id FROM users WHERE telegram_chat_id = ?", chatId);
       if (already) {
-        await send(token, chatId, `✅ <b>You're all set.</b>\nNew matching jobs with a tailored CV & cover letter arrive here automatically.`,
-          [[btnUrl("📢 Channel", `https://t.me/${channel}`)]]);
+        await send(token, chatId, `✅ <b>You're all set.</b>\nNew matching jobs with a tailored CV & cover letter arrive here automatically.\n\n👇 Your team:`,
+          [teamRow("jobs"), [btnUrl("📢 Daily Jobs channel", `https://t.me/${channel}`)]]);
       } else {
         // Auto-welcome funnel: this fires when someone taps "Start" from a
         // channel post. Greet, explain, and invite them to create an account.
@@ -153,6 +153,7 @@ export async function onRequestPost(context) {
           `👇 <b>Step 1:</b> create your free account, then tap <b>Connect Telegram</b> in your dashboard.`,
           [
             [btnUrl("🚀 Create my free account", dash)],
+            teamRow("jobs"),
             [btnUrl("📢 Follow the channel", `https://t.me/${channel}`)],
           ]);
       }
@@ -162,6 +163,16 @@ export async function onRequestPost(context) {
 }
 
 function btnUrl(text, url) { return { text, url }; }
+
+// Cross-promo: the other members of the 4-agent team (bots + channel).
+function teamRow(current) {
+  const all = {
+    jobs: btnUrl("💼 Jobs bot", "https://t.me/jobs_finder_agent_bot"),
+    iv: btnUrl("🎤 Interview Coach", "https://t.me/interview_prep_coach_bot"),
+    aa: btnUrl("🤖 Auto-Apply", "https://t.me/auto_jobs_apply_bot"),
+  };
+  return ["jobs", "iv", "aa"].filter((k) => k !== current).map((k) => all[k]);
+}
 
 function cvprepWall(plan, dash) {
   const label = (PLAN_META[plan] || PLAN_META.free).label;

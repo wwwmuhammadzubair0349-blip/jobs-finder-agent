@@ -63,7 +63,7 @@ export async function onRequestPost(context) {
     await env.KV.delete(key); // consume only on success
     await run(env, "UPDATE users SET interview_chat_id = ?, telegram_chat_id = COALESCE(telegram_chat_id, ?) WHERE id = ?", chatId, chatId, u.id);
     await kvPut(env, `iv_conv:${chatId}`, freshConv());
-    await showMenu(token, chatId, channel, "✅ <b>Connected — your AI Interview Coach</b>");
+    await showMenu(token, chatId, channel, "✅ <b>Connected — I'm your personal interview coach!</b>");
     return json({ ok: true });
   }
 
@@ -80,7 +80,10 @@ export async function onRequestPost(context) {
 
   const user = await one(env, "SELECT id, plan FROM users WHERE interview_chat_id = ?", chatId);
   if (!user) {
-    await send(token, chatId, `👋 <b>AI Interview Coach</b>\n${RULE}\nConnect first: open your dashboard, tap <b>Connect Telegram</b>, then reopen me and press Start.`);
+    await send(token, chatId,
+      `🎤 <b>I'm your personal interview coach</b>\n${RULE}\n` +
+      `I run realistic mock interviews and coach you after every answer. First, connect from your dashboard — tap <b>Connect Telegram</b>, then reopen me and press <b>Start</b>.\n\n👇 Meet the rest of your team:`,
+      [teamRow("iv"), [btnUrl("📢 Daily Jobs channel", `https://t.me/${channel}`)]]);
     return json({ ok: true });
   }
 
@@ -305,10 +308,24 @@ function planLine(plan, left) {
 
 async function showMenu(token, chatId, channel, head) {
   await send(token, chatId,
-    `${head || "👋 <b>AI Interview Coach</b>"}\n${RULE}\n` +
-    `I run realistic mock interviews for your target roles and coach you after every answer.\n\n` +
+    `${head || "🎤 <b>I'm your personal interview coach</b>"}\n${RULE}\n` +
+    `I run realistic, role-specific mock interviews and coach you after every answer — like a senior hiring manager in your corner.\n\n` +
     `Tap below to begin — I'll ask for the role, then we start.`,
-    [[btn("🎤 Conduct an interview", "iv:conduct")], [btnUrl("📢 Daily jobs & tips", `https://t.me/${channel}`)]]);
+    [
+      [btn("🎤 Conduct an interview", "iv:conduct")],
+      teamRow("iv"),
+      [btnUrl("📢 Daily Jobs channel", `https://t.me/${channel}`)],
+    ]);
+}
+
+// Cross-promo: the other members of the 4-agent team (bots + channel).
+function teamRow(current) {
+  const all = {
+    jobs: btnUrl("💼 Jobs bot", "https://t.me/jobs_finder_agent_bot"),
+    iv: btnUrl("🎤 Interview Coach", "https://t.me/interview_prep_coach_bot"),
+    aa: btnUrl("🤖 Auto-Apply", "https://t.me/auto_jobs_apply_bot"),
+  };
+  return ["jobs", "iv", "aa"].filter((k) => k !== current).map((k) => all[k]);
 }
 
 async function save(ctx) { await kvPut(ctx.env, `iv_conv:${ctx.chatId}`, ctx.conv); }

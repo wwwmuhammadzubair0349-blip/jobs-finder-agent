@@ -13,9 +13,11 @@ export async function onRequestGet(context) {
   const base = (env.DASHBOARD_URL || "https://jobs-finder-dashboard.pages.dev").replace(/\/+$/, "");
   const allowed = ["message", "callback_query"];
 
+  const aaToken = env.AUTO_APPLY_BOT_TOKEN || (await env.KV.get("aa_bot_token")) || "";
   const bots = [
     { name: "jobs", token: env.TELEGRAM_TOKEN, secret: env.TELEGRAM_WEBHOOK_SECRET, path: "/api/telegram" },
     { name: "interview", token: env.INTERVIEW_BOT_TOKEN, secret: env.INTERVIEW_WEBHOOK_SECRET, path: "/api/telegram-interview" },
+    { name: "autoapply", token: aaToken, secret: env.AUTOAPPLY_WEBHOOK_SECRET, path: "/api/telegram-autoapply" },
   ];
 
   const out = [];

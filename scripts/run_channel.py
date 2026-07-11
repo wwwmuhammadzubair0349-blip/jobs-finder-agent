@@ -29,6 +29,7 @@ TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
 JOIN_URL = os.getenv("DASHBOARD_URL", "https://jobs-finder-dashboard.pages.dev")
 BOT = os.getenv("BOT_USERNAME", "jobs_finder_agent_bot")
 IV_BOT = os.getenv("INTERVIEW_BOT_USERNAME", "interview_prep_coach_bot")
+AA_BOT = os.getenv("AUTO_APPLY_BOT_USERNAME", "auto_jobs_apply_bot")
 JOBS_PER_POST = int(os.getenv("CHANNEL_JOBS_PER_POST", "8"))
 CMB_PHONE = os.getenv("CALLMEBOT_PHONE", "").strip()
 CMB_KEY = os.getenv("CALLMEBOT_APIKEY", "").strip()
@@ -119,6 +120,8 @@ def buttons() -> list:
     tg = f"https://t.me/share/url?url={quote(CH_URL)}&text={quote(share_text)}"
     return [
         [{"text": "🚀 Start & get matched", "url": f"https://t.me/{BOT}?start=channel"}],
+        [{"text": "🎤 Interview Coach", "url": f"https://t.me/{IV_BOT}?start=channel"},
+         {"text": "🤖 Auto-Apply", "url": f"https://t.me/{AA_BOT}?start=channel"}],
         [{"text": "📲 WhatsApp", "url": wa}, {"text": "𝕏 Share", "url": x}, {"text": "✈️ Telegram", "url": tg}],
     ]
 
@@ -179,6 +182,7 @@ def wa_footer() -> str:
             f"🌐 {JOIN_URL}\n\n"
             f"✈️ *Jobs bot:* https://t.me/{BOT}\n"
             f"🧠 *Interview coach:* https://t.me/{IV_BOT}\n"
+            f"🤖 *Auto-apply:* https://t.me/{AA_BOT}\n"
             f"📢 *Daily jobs channel:* {CH_URL}")
 
 
