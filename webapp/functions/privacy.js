@@ -38,7 +38,7 @@ export async function onRequestGet(context) {
   <p>We keep your data while your account is active. You can request access, correction or deletion of your data, or delete your account, by contacting us. Deleting your account removes your profile and stored credentials.</p>
 
   <h2>Contact</h2>
-  <p>Questions about privacy? Email <a href="mailto:${BRAND.email}">${esc(BRAND.email)}</a> or WhatsApp ${esc(BRAND.whatsappDisplay)}.</p>
+  <p>Questions about privacy? <a href="/contact">Contact us</a> and we'll help.</p>
   </div>
 </div>`;
   return new Response(shell({

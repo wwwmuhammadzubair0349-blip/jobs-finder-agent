@@ -32,7 +32,7 @@ export async function onRequestGet(context) {
   <p>To the extent permitted by law, ${BRAND.name} is not liable for indirect or consequential damages, or for outcomes of job applications. Our total liability is limited to the amount you paid in the last three months.</p>
 
   <h2>Contact</h2>
-  <p>Email <a href="mailto:${BRAND.email}">${esc(BRAND.email)}</a> or WhatsApp ${esc(BRAND.whatsappDisplay)}.</p>
+  <p>Questions? <a href="/contact">Contact us</a>.</p>
   </div>
 </div>`;
   return new Response(shell({

@@ -3,9 +3,8 @@
 
 export const BRAND = {
   name: "Jobs Finder",
-  email: "zkafridi317@gmail.com",
-  whatsapp: "923044678929",
-  whatsappDisplay: "+92 304 4678929",
+  // No personal email / phone in the codebase or on public pages — all contact
+  // goes through the on-site form (/contact), which lands in the admin panel.
   channel: "dailyjobs_feed",
   bot: "jobs_finder_agent_bot",
 };

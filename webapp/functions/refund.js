@@ -21,7 +21,7 @@ export async function onRequestGet(context) {
   <p>Because plans are low-cost monthly subscriptions that you can cancel at any time, we generally do not offer refunds for time already elapsed. If you were charged in error, or something clearly went wrong, contact us within <b>14 days</b> of the charge and we'll review it in good faith. Payments are processed by Lemon Squeezy (our merchant of record), and approved refunds are returned to your original payment method.</p>
 
   <h2>How to cancel or request a refund</h2>
-  <p>Use <b>Manage billing</b> in your dashboard, or contact us at <a href="mailto:${BRAND.email}">${esc(BRAND.email)}</a> / WhatsApp ${esc(BRAND.whatsappDisplay)} and we'll help.</p>
+  <p>Use <b>Manage billing</b> in your dashboard, or <a href="/contact">contact us</a> and we'll help.</p>
   </div>
 </div>`;
   return new Response(shell({
