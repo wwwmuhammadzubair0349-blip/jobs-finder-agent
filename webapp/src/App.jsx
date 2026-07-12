@@ -4,6 +4,7 @@ import Login from "./Login";
 import Landing from "./Landing";
 import InterviewChat from "./InterviewChat";
 import Tour from "./Tour";
+import DailyPromo from "./Promo";
 import { Kpi, JobCard, JobDetail, Empty } from "./parts";
 import { ProfileEditor, SearchEditor, ScheduleEditor, AutoApplyEditor } from "./Editors";
 import { PlanBadge, UsageMeters, PricingModal } from "./Billing";
@@ -236,6 +237,17 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
         {tab === "jobs" && <MyJobs data={data} onApp={setApp} onSend={sendJob} onShare={shareJob} onSave={saveJob} onOpen={openDetail} onInterview={openInterview} complete={complete} goProfile={() => setTab("profile")} onRun={runNow} />}
         {tab === "pool" && <PoolTab targetSlug={targetSlug} clearTarget={() => setTargetSlug("")} onShare={shareJob} />}
         {tab === "profile" && (config ? <ProfileTab key={`prof-${profileSub}`} initialSub={profileSub} config={config} onSave={saveConfig} plan={data?.plan?.id || me.user?.plan || "free"} planData={data?.plan} onUpgrade={() => setShowPricing(true)} onManage={manageBilling} /> : <Loading />)}
+
+        <footer className="app-foot">
+          <span className="brand-badge">JF</span>
+          <span className="foot-b">Jobs Finder</span>
+          <span className="sp" />
+          <a href="/jobs" target="_blank" rel="noreferrer">Browse jobs</a>
+          <a href="/privacy" target="_blank" rel="noreferrer">Privacy</a>
+          <a href="/terms" target="_blank" rel="noreferrer">Terms</a>
+          <a href="/contact" target="_blank" rel="noreferrer">Contact</a>
+          <span>© {new Date().getFullYear()}</span>
+        </footer>
       </div>
 
       <nav className="tabbar">
@@ -299,6 +311,8 @@ function Dashboard({ me, reloadMe, onLogout, theme, setTheme }) {
       )}
 
       {showTour && <Tour onDone={finishTour} />}
+
+      {!showTour && <DailyPromo plan={data?.plan?.id || me.user?.plan} connected={me.user?.telegram_connected} onUpgrade={() => setShowPricing(true)} />}
 
       {!showTour && config && !complete && !nagDismissed && (
         <div className="modal-back" onClick={dismissNag}>
@@ -974,7 +988,7 @@ function Applications({ data }) {
   return (
     <div className="fade">
       <div className="card">
-        <p className="section-title" style={{ marginTop: 0 }}>Pipeline</p>
+        <p className="section-title" style={{ marginTop: 0 }}>Your progress</p>
         <div className="funnel">
           {PIPE.map((s) => (
             <div className="bar-row" key={s} style={{ gridTemplateColumns: "84px 1fr 30px" }}>

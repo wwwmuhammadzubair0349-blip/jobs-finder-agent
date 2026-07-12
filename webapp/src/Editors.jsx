@@ -334,7 +334,7 @@ export function ScheduleEditor({ initial, onSave }) {
           <select value={s.check_every_min || 30} onChange={(e) => { set("check_every_min", parseInt(e.target.value, 10)); }}>
             {[15, 20, 30, 45, 60, 120].map((m) => <option key={m} value={m}>{m} minutes</option>)}
           </select>
-          <div className="hint">The GitHub Actions cron is the hard floor (default every 20 min). This value is advisory unless the cron is set lower.</div>
+          <div className="hint">How often we look for fresh roles for you. During busy periods we may check even more often.</div>
         </div>
         <div className="field"><label className="checkbox"><input type="checkbox" checked={quietOn} onChange={(e) => { setQuietOn(e.target.checked); setDirty(true); setSaved(false); }} /> Quiet hours (hold notifications)</label></div>
         {quietOn && (

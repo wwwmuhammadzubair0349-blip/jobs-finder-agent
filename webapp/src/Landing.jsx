@@ -13,7 +13,7 @@ const FEATURES = [
   { icon: "🤖", t: "Auto-apply", d: "Opt in and we apply for you from your own inbox — safely, within your limits." },
   { icon: "🧠", t: "AI interview coach", d: "Realistic mock interviews with feedback and tips after every answer." },
   { icon: "✈️", t: "Straight to Telegram", d: "Everything lands on your phone. Tap to download or apply in minutes." },
-  { icon: "📊", t: "One clean dashboard", d: "Track matches, applications and your pipeline in one place." },
+  { icon: "📊", t: "One clean dashboard", d: "Track matches, applications and your progress in one place." },
 ];
 
 const STATS = [
