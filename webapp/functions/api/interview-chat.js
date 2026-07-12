@@ -1,11 +1,46 @@
 // POST /api/interview-chat — in-app AI mock interview for a specific job.
-// Body: { job: {title, description}, messages: [{role,content}], start: bool }
-// On start we consume one interview credit (plan-gated). Returns { reply, done }.
+// Body: { job: {title, description}, messages: [{role,content}], start: bool, session }
+// On start we consume one interview credit (plan-gated) and return a signed
+// `session` token. Continuing turns (start:false) MUST present that token —
+// otherwise a scripted client could just always send start:false and run
+// unlimited LLM interviews for free (the message history is client-supplied and
+// there is no server session). Returns { reply, done, session? }.
 import { one } from "../_shared/db.js";
 import { json, badRequest, rateLimit } from "../_shared/kv.js";
 import { consume, userTimezone, metricLimit, PLAN_META } from "../_shared/plans.js";
 
 const MAX_QUESTIONS = 15;
+const SESSION_TTL_MS = 3 * 3600 * 1000; // a started interview stays valid 3h
+
+// ---- signed interview session (HMAC over {uid, iat}) ----------------------- //
+function b64url(s) { return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function b64urlDecode(s) { return atob(s.replace(/-/g, "+").replace(/_/g, "/")); }
+function ctEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+async function hmac(secret, data) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
+  let bin = ""; for (const b of new Uint8Array(sig)) bin += String.fromCharCode(b);
+  return b64url(bin);
+}
+async function issueSession(secret, uid) {
+  const body = b64url(JSON.stringify({ uid: String(uid), iat: Date.now() }));
+  return `${body}.${await hmac(secret + "|iv", body)}`;
+}
+async function validSession(secret, token, uid) {
+  if (!token || typeof token !== "string") return false;
+  const [body, sig] = token.split(".");
+  if (!body || !sig) return false;
+  if (!ctEqual(sig, await hmac(secret + "|iv", body))) return false;
+  try {
+    const p = JSON.parse(b64urlDecode(body));
+    return String(p.uid) === String(uid) && p.iat && (Date.now() - p.iat) <= SESSION_TTL_MS;
+  } catch { return false; }
+}
 
 export async function onRequestPost(context) {
   const { env, data, request } = context;
@@ -22,8 +57,11 @@ export async function onRequestPost(context) {
 
   const urow = await one(env, "SELECT plan FROM users WHERE id = ?", data.userId);
   const plan = (urow?.plan || "free").toLowerCase();
+  const secret = env.AUTH_SECRET || "";
 
-  // Consume one interview credit when a session starts.
+  // Consume one interview credit when a session starts; otherwise require a
+  // valid signed session proving a credit was already paid for this interview.
+  let sessionToken = null;
   if (start) {
     const tz = await userTimezone(env, data.userId);
     const ok = await consume(env, data.userId, plan, "interview", tz);
@@ -34,6 +72,12 @@ export async function onRequestPost(context) {
         message: `You've used your interview practice ${period === "week" ? "this week" : "today"} on the ${(PLAN_META[plan] || PLAN_META.free).label} plan. Upgrade for more.`,
       }, { status: 402 });
     }
+    sessionToken = await issueSession(secret, data.userId);
+  } else if (!(await validSession(secret, body?.session, data.userId))) {
+    return json({
+      ok: false, error: "session",
+      message: "Your interview session expired — start a new one.",
+    }, { status: 402 });
   }
 
   const cfg = await one(env, "SELECT profile FROM configs WHERE user_id = ?", data.userId);
@@ -66,7 +110,7 @@ export async function onRequestPost(context) {
   if (!reply) return json({ ok: false, error: "llm", message: "The coach is busy — try again in a moment." }, { status: 502 });
   const done = /\[\[END\]\]/i.test(reply) || wrap;
   reply = reply.replace(/\[\[END\]\]/gi, "").trim();
-  return json({ ok: true, reply, done });
+  return json({ ok: true, reply, done, ...(sessionToken ? { session: sessionToken } : {}) });
 }
 
 async function llm(env, messages) {

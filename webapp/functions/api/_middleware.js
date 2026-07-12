@@ -13,6 +13,19 @@ export async function onRequest(context) {
 
   if (PUBLIC_PATHS.includes(url.pathname)) return next();
 
+  // CSRF defense-in-depth: for cookie-authenticated mutating requests, reject a
+  // cross-site Origin. Same-origin browser fetches send Origin = our host;
+  // server-to-server callers (already excluded above) send none. Combined with
+  // the SameSite=Lax cookie this makes cross-site state change infeasible.
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    const origin = request.headers.get("Origin");
+    if (origin) {
+      let ok = false;
+      try { ok = new URL(origin).host === url.host; } catch { ok = false; }
+      if (!ok) return json({ error: "cross-origin request blocked" }, { status: 403 });
+    }
+  }
+
   const session = await verifySession(request, env.AUTH_SECRET || "");
   if (!session?.uid) return unauthorized();
 

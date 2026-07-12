@@ -14,6 +14,21 @@ export function esc(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// Serialize an object to a <script type="application/ld+json"> block SAFELY.
+// JSON.stringify does NOT escape "<", so a value containing "</script>" (job
+// descriptions come from third-party sources) would break out of the tag and
+// — because our CSP allows 'unsafe-inline' — inject executable HTML. Escaping
+// the HTML-significant chars <, > and & as \uXXXX keeps the JSON valid
+// while making <script> tag breakout impossible.
+export function jsonLdScript(obj) {
+  // fromCharCode(92) = backslash; emit \u00XX JSON escapes without a
+  // literal backslash in this source. All of < > & are < 0x100.
+  const bs = String.fromCharCode(92);
+  const json = JSON.stringify(obj).replace(
+    /[<>&]/g, (c) => bs + "u00" + c.charCodeAt(0).toString(16).padStart(2, "0"));
+  return `<script type="application/ld+json">${json}</script>`;
+}
+
 // Repair mojibake + strip HTML/entities from scraped job text.
 export function cleanText(s) {
   if (!s) return "";

@@ -47,10 +47,18 @@ export async function onRequestGet(context) {
     kvJSON(env, "latest_run", null),
   ]);
 
-  // Sanitise engine activity: never expose another user's job title.
+  // `latest_run` is a GLOBAL blob written by the multi-tenant pipeline. Its
+  // log_tail / step_states / current.job contain OTHER users' emails, job
+  // titles and error details. Expose the raw blob to admins only; everyone
+  // else gets just a live status indicator with no cross-tenant data.
   let safeRun = latestRun;
-  if (safeRun?.current && !data.isAdmin) {
-    safeRun = { ...safeRun, current: { ...safeRun.current, job: safeRun.current.agent ? "processing…" : null } };
+  if (safeRun && !data.isAdmin) {
+    safeRun = {
+      status: safeRun.status,
+      started_at: safeRun.started_at,
+      finished_at: safeRun.finished_at,
+      current: safeRun.current?.agent ? { agent: safeRun.current.agent, job: "processing…" } : null,
+    };
   }
 
   return json({

@@ -39,7 +39,16 @@ export async function onRequestPost(context) {
     if (!clash) break;
     code = connectionCode();
   }
-  const isAdmin = email === (env.ADMIN_EMAIL || "").trim().toLowerCase() ? 1 : 0;
+  // Admin bootstrap: grant admin to ADMIN_EMAIL ONLY while no admin exists yet.
+  // The support email is shown publicly, so without the "no admin yet" guard a
+  // stranger could register it and mint a second admin. Once the real owner's
+  // account exists, this can never grant admin again.
+  let isAdmin = 0;
+  const adminEmail = (env.ADMIN_EMAIL || "").trim().toLowerCase();
+  if (adminEmail && email === adminEmail) {
+    const existingAdmin = await one(env, "SELECT id FROM users WHERE is_admin = 1 LIMIT 1");
+    if (!existingAdmin) isAdmin = 1;
+  }
 
   await run(env,
     "INSERT INTO users (id, email, password_hash, connection_code, is_admin, plan, status, created_at, last_active) VALUES (?,?,?,?,?,?,?,?,?)",

@@ -69,3 +69,30 @@ def execute(sql: str, params: list | None = None) -> bool:
     except requests.RequestException as exc:
         print(f"[d1] execute failed: {exc}")
         return False
+
+
+def execute_changes(sql: str, params: list | None = None) -> int:
+    """Run a write and return the number of rows changed (meta.changes), or -1
+    on failure. Lets callers do atomic conditional updates (e.g. quota consume)
+    and know whether THIS statement actually modified a row."""
+    if not d1_available():
+        return -1
+    try:
+        resp = requests.post(
+            _url(),
+            headers={"Authorization": f"Bearer {CF_API_TOKEN}", "Content-Type": "application/json"},
+            json={"sql": sql, "params": params or []},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("success"):
+            return -1
+        result = data.get("result", [])
+        if result and isinstance(result, list):
+            meta = result[0].get("meta") or {}
+            return int(meta.get("changes", 0))
+        return 0
+    except requests.RequestException as exc:
+        print(f"[d1] execute_changes failed: {exc}")
+        return -1

@@ -10,6 +10,7 @@ export default function InterviewChat({ job, onClose, onUpgrade }) {
   const [input, setInput] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [wall, setWall] = React.useState("");
+  const sessionRef = React.useRef(null); // signed token proving the start credit was paid
   const threadRef = React.useRef(null);
   const jobMeta = { title: cleanText(job.title), company: cleanText(job.company), description: job.description || "" };
 
@@ -24,7 +25,7 @@ export default function InterviewChat({ job, onClose, onUpgrade }) {
     try {
       const r = await call({ messages: [], start: true });
       if (r?.error === "limit") { setWall(r.message || "Interview limit reached — upgrade for more."); setStage("wall"); return; }
-      if (r?.ok) { setMsgs([{ role: "assistant", content: r.reply }]); setStage("chatting"); }
+      if (r?.ok) { sessionRef.current = r.session || null; setMsgs([{ role: "assistant", content: r.reply }]); setStage("chatting"); }
       else setWall("The coach is busy — please try again.");
     } catch (e) {
       if (e.message === "limit") { setStage("wall"); setWall("Interview limit reached — upgrade for more."); }
@@ -39,10 +40,12 @@ export default function InterviewChat({ job, onClose, onUpgrade }) {
     const next = [...msgs, { role: "user", content: text }];
     setMsgs(next); setInput(""); setBusy(true);
     try {
-      const r = await call({ messages: next, start: false });
+      const r = await call({ messages: next, start: false, session: sessionRef.current });
       if (r?.ok) {
         setMsgs([...next, { role: "assistant", content: r.reply }]);
         if (r.done) setStage("ended");
+      } else if (r?.error === "session") {
+        setWall(r.message || "Your interview session expired — start a new one."); setStage("wall");
       } else {
         setMsgs([...next, { role: "assistant", content: "⚠️ The coach hit a snag — try sending that again." }]);
       }

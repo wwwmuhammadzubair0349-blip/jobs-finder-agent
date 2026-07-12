@@ -1,10 +1,15 @@
 // POST /api/run — trigger the GitHub Actions search workflow (Run now button).
 // Uses GITHUB_PAT (actions:write on the code repo only); never exposed to the
 // browser. CODE_REPO = "owner/repo".
-import { json } from "../_shared/kv.js";
+import { json, rateLimit } from "../_shared/kv.js";
 
 export async function onRequestPost(context) {
-  const { env } = context;
+  const { env, data } = context;
+  // "Run now" dispatches a global GitHub Actions workflow — cap per user so it
+  // can't be spammed to burn Actions minutes / rate-limit the GitHub token.
+  if (!(await rateLimit(env, `run:${data.userId}`, 5, 600))) {
+    return json({ error: "You're triggering runs too often — give it a minute." }, { status: 429 });
+  }
   const pat = env.GITHUB_PAT;
   const repo = env.CODE_REPO;
   if (!pat || !repo) {

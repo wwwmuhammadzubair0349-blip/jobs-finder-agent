@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import datetime as _dt
 
-from d1 import execute, query
+from d1 import execute, execute_changes, query
 
 UNLIMITED = 999  # practical ceiling — protects LLM cost, never shown as a wall
 
@@ -84,9 +84,26 @@ def allow(user_id: str, plan: str, metric: str, tz: str = "UTC") -> bool:
 
 
 def consume(user_id: str, plan: str, metric: str, tz: str = "UTC") -> bool:
-    """Consume one credit. True if allowed (and counted), False if over limit."""
+    """Consume one credit. True if allowed (and counted), False if over limit.
+
+    Atomic: the conditional UPDATE (count < limit) is a single SQLite statement,
+    so concurrent ticks can never push a counter past the limit — mirrors the
+    Functions-side consume() in plans.js. Avoids a read-then-write TOCTOU race.
+    """
     limit, period = metric_limit(plan, metric)
+    if limit <= 0:
+        return False
     pkey = period_key(period, tz)
+    execute(
+        "INSERT OR IGNORE INTO usage_counters (user_id, metric, period_key, count) VALUES (?,?,?,0)",
+        [user_id, metric, pkey])
+    changed = execute_changes(
+        "UPDATE usage_counters SET count = count + 1 "
+        "WHERE user_id=? AND metric=? AND period_key=? AND count < ?",
+        [user_id, metric, pkey, limit])
+    if changed >= 0:
+        return changed > 0            # atomic path: True only if OUR update counted
+    # D1 unavailable / error → fall back to a best-effort read-then-write.
     if usage_count(user_id, metric, pkey) >= limit:
         return False
     bump(user_id, metric, pkey)

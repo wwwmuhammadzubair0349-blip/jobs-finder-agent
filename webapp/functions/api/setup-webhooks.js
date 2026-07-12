@@ -1,14 +1,26 @@
-// GET /api/setup-webhooks?key=<AUTH_SECRET>
+// GET /api/setup-webhooks   (header:  X-Setup-Key: <SETUP_KEY or AUTH_SECRET>)
 // One-shot admin utility: (re)registers both Telegram bot webhooks with the
 // correct URL, secret token, and allowed_updates (message + callback_query),
-// using the Function's own env secrets. Protected by AUTH_SECRET so it can be
-// invoked without a session cookie. Never returns any secret value.
+// using the Function's own env secrets. Protected by a key so it can be invoked
+// without a session cookie. Prefer a dedicated SETUP_KEY; falls back to
+// AUTH_SECRET. The key is read from the X-Setup-Key HEADER (not the query
+// string, which lands in access logs / proxies / browser history) and compared
+// in constant time. Never returns any secret value.
 import { json, unauthorized } from "../_shared/kv.js";
+
+function ctEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
 
 export async function onRequestGet(context) {
   const { env, request } = context;
+  const expected = env.SETUP_KEY || env.AUTH_SECRET || "";
   const url = new URL(request.url);
-  if (!env.AUTH_SECRET || url.searchParams.get("key") !== env.AUTH_SECRET) return unauthorized();
+  // Header is preferred; query is still accepted for back-compat but discouraged.
+  const provided = request.headers.get("X-Setup-Key") || url.searchParams.get("key") || "";
+  if (!expected || !ctEqual(provided, expected)) return unauthorized();
 
   const base = (env.DASHBOARD_URL || "https://jobs-finder-dashboard.pages.dev").replace(/\/+$/, "");
   const allowed = ["message", "callback_query"];

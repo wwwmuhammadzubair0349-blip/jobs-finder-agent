@@ -42,7 +42,11 @@ export async function onRequestPost(context) {
   try { body = await context.request.json(); } catch { return badRequest("invalid json"); }
   const { section, data: payload } = body || {};
   if (!["profile", "search", "schedule", "auto_apply"].includes(section)) return badRequest("bad section");
-  if (typeof payload !== "object" || payload === null) return badRequest("bad data");
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return badRequest("bad data");
+  // Storage-abuse guard: a single config section must stay small (profiles are
+  // text CV fields, not blobs). ~48KB of JSON is far above any real profile.
+  try { if (JSON.stringify(payload).length > 48 * 1024) return badRequest("payload too large"); }
+  catch { return badRequest("bad data"); }
 
   const cfg = await loadConfig(env, data.userId);
   let profile = cfg.profile, search = cfg.search, settings = cfg.settings;

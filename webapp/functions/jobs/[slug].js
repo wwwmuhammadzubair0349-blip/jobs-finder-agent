@@ -1,7 +1,7 @@
 // GET /jobs/:slug — PUBLIC server-rendered job landing page (full SEO +
 // JSON-LD JobPosting). "Apply now" routes to signup — public visitors create
 // an account to apply and get a tailored CV.
-import { shell, BRAND, esc, cleanText } from "../_shared/page.js";
+import { shell, BRAND, esc, cleanText, jsonLdScript } from "../_shared/page.js";
 
 function initials(name) {
   const w = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -78,7 +78,7 @@ export async function onRequestGet(context) {
   return new Response(shell({
     base, title: `${esc(jobTitle)} at ${esc(jobCompany || "—")} — ${BRAND.name}`,
     description: metaDesc, canonicalPath: `/jobs/${slug}`, active: "jobs",
-    headExtra: `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`,
+    headExtra: jsonLdScript(jsonLd),
     hero: null, body,
   }), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=1800" } });
 }
